@@ -57,7 +57,7 @@ prototype.latest = function (publicKey, callback) {
     }
     var latest = -1
     files.forEach(function (file) {
-      if (file === 'forked') return
+      if (file === 'conflict') return
       var parsed = parseInt(file)
       if (parsed > latest) latest = parsed
     })
@@ -66,10 +66,10 @@ prototype.latest = function (publicKey, callback) {
   })
 }
 
-prototype.forked = function (publicKey, callback) {
+prototype.conflicted = function (publicKey, callback) {
   assert(typeof publicKey === 'string')
   assert(typeof callback === 'function')
-  var file = this._forkPath(publicKey)
+  var file = this._conflictPath(publicKey)
   fs.readFile(file, 'utf8', function (error, content) {
     if (error) {
       if (error.code === 'ENOENT') return callback(null, null)
@@ -79,7 +79,7 @@ prototype.forked = function (publicKey, callback) {
   })
 }
 
-prototype.fork = function (options, callback) {
+prototype.conflict = function (options, callback) {
   assert(typeof options === 'object')
   assert(typeof options.publicKey === 'string')
   assert(typeof options.index === 'number')
@@ -88,7 +88,7 @@ prototype.fork = function (options, callback) {
   assert(typeof callback === 'function')
   var publicKey = options.publicKey
   var index = options.index
-  var file = this._forkPath(publicKey)
+  var file = this._conflictPath(publicKey)
   fs.writeFile(file, index.toString(), callback)
 }
 
@@ -109,6 +109,6 @@ prototype._messagePath = function (publicKey, index) {
   return path.join(this._feedPath(publicKey), index)
 }
 
-prototype._forkPath = function (publicKey) {
-  return path.join(this._feedPath(publicKey), 'forked')
+prototype._conflictPath = function (publicKey) {
+  return path.join(this._feedPath(publicKey), 'conflict')
 }
