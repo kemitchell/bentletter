@@ -7,11 +7,13 @@
     "strict-json-object-schema": "^1.1.0"
   },
   "scripts": {
-    "test": "node test.js"
+    "test": "node test.js",
+    "lint": "standard"
   },
   "devDependencies": {
     "glob": "^7.1.4",
     "run-series": "^1.1.8",
+    "standard": "^13.0.2",
     "tape": "^4.11.0"
   }
 }

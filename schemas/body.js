@@ -6,6 +6,6 @@ module.exports = {
       minLength: 1
     }
   },
-  required: [ 'type' ],
+  required: ['type'],
   additionalProperties: true
 }
