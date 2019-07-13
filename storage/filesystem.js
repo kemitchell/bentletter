@@ -18,7 +18,7 @@ function FileSystem (options) {
 
 var prototype = FileSystem.prototype
 
-prototype.put = function (envelope, callback) {
+prototype.write = function (envelope, callback) {
   assert(typeof envelope === 'object')
   assert(typeof callback === 'function')
   var publicKey = envelope.publicKey
@@ -27,7 +27,7 @@ prototype.put = function (envelope, callback) {
   fs.writeFile(file, JSON.stringify(envelope), callback)
 }
 
-prototype.get = function (options, callback) {
+prototype.read = function (options, callback) {
   assert(typeof options === 'object')
   assert(typeof options.publicKey === 'string')
   assert(Number.isSafeInteger(options.index))
