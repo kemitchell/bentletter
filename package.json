@@ -3,6 +3,7 @@
   "dependencies": {
     "ajv": "^6.10.1",
     "fast-json-stable-stringify": "^2.0.0",
+    "has": "^1.0.3",
     "nanoassert": "^2.0.0",
     "sodium-universal": "^2.0.0",
     "strict-json-object-schema": "^1.1.0"
