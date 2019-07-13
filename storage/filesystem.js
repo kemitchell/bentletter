@@ -18,8 +18,6 @@ function FileSystem (options) {
 
 var prototype = FileSystem.prototype
 
-var ENVELOPES = 'envelopes'
-
 prototype.put = function (envelope, callback) {
   assert(typeof envelope === 'object')
   assert(typeof callback === 'function')
@@ -48,8 +46,6 @@ prototype.get = function (options, callback) {
   })
 }
 
-var FORKED = 'forked'
-
 prototype.latest = function (publicKey, callback) {
   assert(typeof publicKey === 'string')
   assert(typeof callback === 'function')
@@ -61,7 +57,7 @@ prototype.latest = function (publicKey, callback) {
     }
     var latest = -1
     files.forEach(function (file) {
-      if (file === FORKED) return
+      if (file === 'forked') return
       var parsed = parseInt(file)
       if (parsed > latest) latest = parsed
     })
@@ -106,7 +102,7 @@ prototype.drop = function (publicKey, callback) {
 // Path Helper Methods
 
 prototype._feedPath = function (publicKey) {
-  return path.join(this._directory, ENVELOPES, publicKey)
+  return path.join(this._directory, 'envelopes', publicKey)
 }
 
 prototype._messagePath = function (publicKey, index) {
@@ -114,5 +110,5 @@ prototype._messagePath = function (publicKey, index) {
 }
 
 prototype._forkPath = function (publicKey) {
-  return path.join(this._feedPath(publicKey), FORKED)
+  return path.join(this._feedPath(publicKey), 'forked')
 }
