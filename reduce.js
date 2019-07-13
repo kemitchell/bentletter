@@ -19,8 +19,10 @@ module.exports = function (state, envelope, callback) {
     if (date < latestDate) {
       var error = new Error(
         'Message ' + index + ' is dated earlier than ' +
-        'message ' + state.latestIndex
+        'message ' + state.latestIndex + '.'
       )
+      error.first = state.latestIndex
+      error.second = index
       return callback(error)
     }
     state.latestIndex = index
@@ -51,22 +53,16 @@ module.exports = function (state, envelope, callback) {
     var stopIndex = body.index
     var unfollowingPublicKey = body.publicKey
     if (unfollowingPublicKey === publicKey) return callback()
-    if (!has(state, 'following')) state.following = {}
-    if (!has(state.following, unfollowingPublicKey)) {
-      state.following[unfollowingPublicKey] = {
-        starts: [],
-        stops: [stopIndex]
-      }
-    } else {
-      pushToArraySet(state.following[unfollowingPublicKey].stops, stopIndex)
-    }
+    if (!has(state, 'following')) return callback()
+    if (!has(state.following, unfollowingPublicKey)) return callback()
+    pushToArraySet(state.following[unfollowingPublicKey].stops, stopIndex)
     return callback()
   }
 
   if (type === 'announce') {
     var uri = body.uri
     if (!has(state, 'uris')) state.uris = [uri]
-    else state.uris.push(uri)
+    else pushToArraySet(state.uris, uri)
     return callback()
   }
 }
