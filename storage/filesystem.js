@@ -110,9 +110,9 @@ prototype._feedPath = function (publicKey) {
 }
 
 prototype._messagePath = function (publicKey, index) {
-  return path.join(this._directory, ENVELOPES, publicKey, index)
+  return path.join(this._feedPath(publicKey), index)
 }
 
 prototype._forkPath = function (publicKey) {
-  return path.join(this._directory, ENVELOPES, publicKey, FORKED)
+  return path.join(this._feedPath(publicKey), FORKED)
 }
