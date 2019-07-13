@@ -21,10 +21,20 @@ var prototype = FileSystem.prototype
 prototype.write = function (envelope, callback) {
   assert(typeof envelope === 'object')
   assert(typeof callback === 'function')
+  var self = this
   var publicKey = envelope.publicKey
   var index = envelope.message.index
   var file = this._messagePath(publicKey, index)
-  fs.writeFile(file, JSON.stringify(envelope), callback)
+  var json = JSON.stringify(envelope)
+  fs.writeFile(file, 'wf', json, function (error) {
+    if (error) {
+      if (error.code === 'EEXIST') {
+        return self.conflict(envelope, callback)
+      }
+      return callback(error)
+    }
+    callback()
+  })
 }
 
 prototype.read = function (options, callback) {
@@ -70,26 +80,22 @@ prototype.conflicted = function (publicKey, callback) {
   assert(typeof publicKey === 'string')
   assert(typeof callback === 'function')
   var file = this._conflictPath(publicKey)
-  fs.readFile(file, 'utf8', function (error, content) {
+  fs.readFile(file, function (error, content) {
     if (error) {
       if (error.code === 'ENOENT') return callback(null, null)
       else return callback(error)
     }
-    callback(null, parseInt(content))
+    callback(null, JSON.parse(content))
   })
 }
 
-prototype.conflict = function (options, callback) {
-  assert(typeof options === 'object')
-  assert(typeof options.publicKey === 'string')
-  assert(typeof options.index === 'number')
-  assert(Number.isSafeInteger(options.index))
-  assert(options.index >= 0)
+prototype.conflict = function (envelope, callback) {
+  assert(typeof envelope === 'object')
   assert(typeof callback === 'function')
-  var publicKey = options.publicKey
-  var index = options.index
+  var publicKey = envelope.publicKey
   var file = this._conflictPath(publicKey)
-  fs.writeFile(file, index.toString(), callback)
+  var json = JSON.stringify(envelope)
+  fs.writeFile(file, 'wx', json, callback)
 }
 
 prototype.drop = function (publicKey, callback) {
