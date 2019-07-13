@@ -1,6 +1,7 @@
 var assert = require('nanoassert')
 var fs = require('fs')
 var path = require('path')
+var rimraf = require('rimraf')
 
 module.exports = FileSystem
 
@@ -56,7 +57,7 @@ var FORKED = 'forked'
 prototype.latest = function (publicKey, callback) {
   assert(typeof publicKey === 'string')
   assert(typeof callback === 'function')
-  var directory = path.join(this._directory, ENVELOPES, publicKey)
+  var directory = this._feedPath(publicKey)
   fs.readdir(directory, function (error, files) {
     if (error) {
       if (error.code === 'ENOENT') return callback(null, null)
@@ -71,6 +72,10 @@ prototype.latest = function (publicKey, callback) {
     if (latest === -1) return callback(null, null)
     callback(null, latest)
   })
+}
+
+prototype._feedPath = function (publicKey) {
+  return path.join(this._directory, ENVELOPES, publicKey)
 }
 
 prototype.forked = function (publicKey, callback) {
@@ -101,4 +106,11 @@ prototype.fork = function (options, callback) {
 
 prototype._forkPath = function (publicKey) {
   return path.join(this._directory, ENVELOPES, publicKey, FORKED)
+}
+
+prototype.drop = function (publicKey, callback) {
+  assert(typeof publicKey === 'string')
+  assert(typeof callback === 'function')
+  var directory = this._feedPath(publicKey)
+  rimraf(directory, callback)
 }
