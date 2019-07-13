@@ -48,10 +48,6 @@ prototype.get = function (options, callback) {
   })
 }
 
-prototype._messagePath = function (publicKey, index) {
-  return path.join(this._directory, ENVELOPES, publicKey, index)
-}
-
 var FORKED = 'forked'
 
 prototype.latest = function (publicKey, callback) {
@@ -72,10 +68,6 @@ prototype.latest = function (publicKey, callback) {
     if (latest === -1) return callback(null, null)
     callback(null, latest)
   })
-}
-
-prototype._feedPath = function (publicKey) {
-  return path.join(this._directory, ENVELOPES, publicKey)
 }
 
 prototype.forked = function (publicKey, callback) {
@@ -104,13 +96,23 @@ prototype.fork = function (options, callback) {
   fs.writeFile(file, index.toString(), callback)
 }
 
-prototype._forkPath = function (publicKey) {
-  return path.join(this._directory, ENVELOPES, publicKey, FORKED)
-}
-
 prototype.drop = function (publicKey, callback) {
   assert(typeof publicKey === 'string')
   assert(typeof callback === 'function')
   var directory = this._feedPath(publicKey)
   rimraf(directory, callback)
+}
+
+// Path Helper Methods
+
+prototype._feedPath = function (publicKey) {
+  return path.join(this._directory, ENVELOPES, publicKey)
+}
+
+prototype._messagePath = function (publicKey, index) {
+  return path.join(this._directory, ENVELOPES, publicKey, index)
+}
+
+prototype._forkPath = function (publicKey) {
+  return path.join(this._directory, ENVELOPES, publicKey, FORKED)
 }
