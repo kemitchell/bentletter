@@ -1,4 +1,5 @@
 {
+  "name": "bentletter",
   "dependencies": {
     "ajv": "^6.10.1",
     "fast-json-stable-stringify": "^2.0.0",
