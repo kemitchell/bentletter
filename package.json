@@ -10,11 +10,13 @@
   },
   "devDependencies": {
     "glob": "^7.1.4",
+    "nyc": "^14.1.1",
     "run-series": "^1.1.8",
     "standard": "^13.0.2",
     "tape": "^4.11.0"
   },
   "scripts": {
+    "coverage": "nyc npm run test",
     "test": "node test.js",
     "lint": "standard"
   }
