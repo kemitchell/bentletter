@@ -1,0 +1,7 @@
+envelopes: digest -> JSON
+
+publishers: public key ->
+  log: [digest...] in index order
+  timeline: [digest...] in date:index order
+  inbox: [digest...] in date order
+  view: [digest...] in date
