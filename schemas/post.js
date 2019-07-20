@@ -4,7 +4,7 @@ module.exports = strictJSONObjectSchema({
   type: { const: 'post' },
   post: {
     type: 'array',
-    items: {
+    content: {
       oneOf: [
         {
           type: 'string',
