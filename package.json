@@ -4,6 +4,7 @@
     "ajv": "^6.10.1",
     "block-stream": "0.0.9",
     "fast-json-stable-stringify": "^2.0.0",
+    "flush-write-stream": "^2.0.0",
     "from2": "^2.3.0",
     "has": "^1.0.3",
     "lock": "^1.1.0",

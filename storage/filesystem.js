@@ -1,6 +1,7 @@
 var BlockStream = require('block-stream')
 var DIGEST_LENGTH = require('../crypto/digest-length')
 var assert = require('nanoassert')
+var flushWriteStream = require('flush-write-stream')
 var from2 = require('from2')
 var fs = require('fs')
 var hash = require('../crypto/hash')
@@ -325,6 +326,26 @@ prototype.reduction = function (publicKeyHex, callback) {
     }
     callback(null, reduction)
   })
+}
+
+prototype.rereduce = function (publicKeyHex, callback) {
+  assert(typeof publicKeyHex === 'string')
+  var self = this
+  var reduction = {}
+  pump(
+    self.createStream(publicKeyHex),
+    flushWriteStream.obj(function (chunk, _, done) {
+      reduce(reduction, chunk.envelope, done)
+    }),
+    function (error) {
+      if (error) return callback(error)
+      fs.writeFile(
+        self._reductionPath(publicKeyHex),
+        JSON.stringify(reduction),
+        callback
+      )
+    }
+  )
 }
 
 prototype._conflict = function (publicKeyHex, firstDigest, secondDigest, callback) {

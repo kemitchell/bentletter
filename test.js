@@ -207,16 +207,27 @@ tape('file system storage', function (test) {
     var keyPair = makeKeyPair()
     var secretKey = keyPair.secretKey.toString('hex')
     var publicKey = keyPair.publicKey.toString('hex')
+    var otherKeyPair = makeKeyPair()
+    var otherPublicKey = otherKeyPair.publicKey.toString('hex')
     var messages = [
       {
         index: 0,
         date: new Date(Date.now() - 3000).toISOString(),
-        body: { type: 'follow', name: 'self', publicKey, index: 0 }
+        body: {
+          type: 'follow',
+          name: 'Anne',
+          publicKey: otherPublicKey,
+          index: 0
+        }
       },
       {
         index: 1,
         date: new Date().toISOString(),
-        body: { type: 'unfollow', publicKey, index: 1 }
+        body: {
+          type: 'unfollow',
+          publicKey: otherPublicKey,
+          index: 1
+        }
       }
     ]
     var envelopes = messages.map(function (message) {
@@ -261,11 +272,31 @@ tape('file system storage', function (test) {
             test.deepEqual(read[1].envelope, envelopes[0], 'reverse stream second')
             done()
           })
+      },
+      checkReduction,
+      function checkRereduction (done) {
+        fileSystem.rereduce(publicKey, function (error) {
+          if (error) return done(error)
+          checkReduction(done)
+        })
       }
     ], function () {
       rimraf(directory, function () { })
       test.end()
     })
+    function checkReduction (done) {
+      fileSystem.reduction(publicKey, function (error, reduction) {
+        if (error) return done(error)
+        test.equal(reduction.latestIndex, envelopes[1].message.index, 'reduction latest index')
+        test.equal(reduction.latestDate, envelopes[1].message.date, 'reduction latest date')
+        test.deepEqual(
+          reduction.following[otherPublicKey],
+          { names: ['Anne'], starts: [0], stops: [1] },
+          'following Anne'
+        )
+        done()
+      })
+    }
   })
 })
 
