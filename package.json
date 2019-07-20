@@ -19,6 +19,7 @@
     "through2": "^3.0.1"
   },
   "devDependencies": {
+    "deep-equal": "^1.0.1",
     "glob": "^7.1.4",
     "nyc": "^14.1.1",
     "standard": "^13.0.2",

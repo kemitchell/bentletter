@@ -1,5 +1,6 @@
 var AJV = require('ajv')
 var crypto = require('crypto')
+var deepEqual = require('deep-equal')
 var glob = require('glob')
 var hash = require('./crypto/hash')
 var makeKeyPair = require('./crypto/make-key-pair')
@@ -354,5 +355,113 @@ tape('file system storage conflict', function (test) {
       rimraf(directory, function () { })
       test.end()
     })
+  })
+})
+
+tape.skip('timeline', function (test) {
+  var anna = {
+    keyPair: makeKeyPair(),
+    bodies: [
+      { type: 'post', content: ['first post'] },
+      { type: 'post', content: ['second post'] },
+      { type: 'post', content: ['third post'] }
+    ]
+  }
+  var bob = {
+    keyPair: makeKeyPair(),
+    bodies: [
+      { type: 'post', content: ['first post'] },
+      { type: 'post', content: ['second post'] },
+      { type: 'post', content: ['third post'] }
+    ]
+  }
+  var charlie = {
+    keyPair: makeKeyPair(),
+    bodies: [
+      {
+        type: 'follow',
+        name: 'anna',
+        publicKey: anna.keyPair.publicKey.toString('hex')
+      },
+      {
+        type: 'unfollow',
+        publicKey: anna.keyPair.publicKey.toString('hex'),
+        index: 1
+      },
+      {
+        type: 'follow',
+        name: 'bob',
+        publicKey: bob.keyPair.publicKey.toString('hex')
+      },
+      {
+        type: 'unfollow',
+        publicKey: bob.keyPair.publicKey.toString('hex'),
+        index: 2
+      }
+    ]
+  }
+  var players = [anna, bob, charlie]
+  players.forEach(function (player, playerIndex) {
+    var backdate = new Date('2019-01-01')
+    var publicKey = player.keyPair.publicKey.toString('hex')
+    var secretKey = player.keyPair.secretKey.toString('hex')
+    player.publcKey = publicKey
+    player.envelopes = player.bodies.map(function (body, bodyIndex) {
+      var date = new Date(
+        backdate.getTime() +
+        (bodyIndex * 60000) +
+        (playerIndex * 1000)
+      )
+        .toISOString()
+      var message = { index: bodyIndex, date, body }
+      var envelope = { publicKey, message }
+      sign({ envelope, secretKey })
+      return envelope
+    })
+  })
+
+  fs.mkdtemp(path.join(os.tmpdir(), 'bentletter'), function (error, directory) {
+    test.ifError(error)
+    var fileSystem = new FileSystem({ directory })
+    var allEnvelopes = players.reduce(function (envelopes, player) {
+      return envelopes.concat(player.envelopes)
+    }, [])
+    runSeries(
+      allEnvelopes.map(function (envelope) {
+        return function (done) {
+          fileSystem.append(envelope, done)
+        }
+      }),
+      function () {
+        fileSystem.timeline(
+          {
+            publicKey: anna.publicKey,
+            start: new Date(),
+            limit: 100
+          },
+          function (error, timeline) {
+            test.ifError(error)
+            var expecting = []
+              .concat(anna.envelopes.slice(0, 1))
+              .concat(bob.envelopes.slice(0, 2))
+            expecting.every(function (logEnvelope) {
+              test.assert(
+                timeline.some(function (timelineEnvelope) {
+                  return deepEqual(logEnvelope, timelineEnvelope)
+                })
+              )
+            })
+            var sortedByDate = timeline.sort(function (a, b) {
+              var aDate = new Date(a.message.date)
+              var bDate = new Date(b.message.date)
+              return aDate - bDate
+            })
+            test.deepEqual(timeline, sortedByDate)
+            rimraf(directory, function () { })
+            test.end()
+          }
+        )
+      }
+    )
   })
 })
