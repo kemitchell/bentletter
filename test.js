@@ -1,6 +1,7 @@
 var AJV = require('ajv')
 var crypto = require('crypto')
 var glob = require('glob')
+var hash = require('./crypto/hash')
 var makeKeyPair = require('./crypto/make-key-pair')
 var path = require('path')
 var reduce = require('./reduce')
@@ -291,6 +292,7 @@ tape('file system storage conflict', function (test) {
       sign({ envelope, secretKey })
       return envelope
     })
+    var digests = envelopes.map(hash)
     var fileSystem = new FileSystem({ directory })
     runSeries([
       function appendFirst (done) {
@@ -309,6 +311,8 @@ tape('file system storage conflict', function (test) {
         fileSystem.conflicts(publicKey, function (error, conflicts) {
           if (error) return done(error)
           test.equal(conflicts.length, 1, 'one conflict')
+          test.assert(digests[0].equals(conflicts[0][0]))
+          test.assert(digests[1].equals(conflicts[0][1]))
           done()
         })
       }

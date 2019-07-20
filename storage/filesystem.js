@@ -122,8 +122,8 @@ prototype.append = function (envelope, callback) {
                 if (!existingDigestBuffer.equals(digestBuffer)) {
                   return self._conflict(
                     publicKeyHex,
-                    digestBuffer,
                     existingDigestBuffer,
+                    digestBuffer,
                     function (writeError) {
                       if (writeError) return done(writeError)
                       var conflictError = new Error('conflict')
@@ -278,10 +278,10 @@ prototype.conflicts = function (publicKeyHex, callback) {
       return callback(error)
     }
     var conflicts = []
-    for (var offset = 0; offset < contents.length; offset += DIGEST_LENGTH * 2) {
+    for (var offset = 0; offset < contents.length; offset += (DIGEST_LENGTH * 2)) {
       conflicts.push([
-        contents.slice(offset, DIGEST_LENGTH),
-        contents.slice(offset + DIGEST_LENGTH, DIGEST_LENGTH)
+        contents.slice(offset, offset + DIGEST_LENGTH),
+        contents.slice(offset + DIGEST_LENGTH, offset + (DIGEST_LENGTH * 2))
       ])
     }
     callback(null, conflicts)
