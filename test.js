@@ -69,15 +69,12 @@ tape('reduce follow', function (test) {
   var start = 100
   var stop = 200
   testReduction(test, [
-    { type: 'follow', publicKey, name: firstName, index: start },
-    { type: 'follow', publicKey, name: secondName, index: start },
+    { type: 'follow', publicKey, name: firstName },
+    { type: 'follow', publicKey, name: secondName },
     { type: 'unfollow', publicKey, index: stop }
   ], function (test, result) {
     var expected = {}
-    expected[publicKey] = {
-      names: [firstName, secondName],
-      ranges: [{ start, stop }]
-    }
+    expected[publicKey] = { name: secondName, stop }
     test.deepEqual(result.following, expected, 'following record')
     test.end()
   })
@@ -167,7 +164,7 @@ tape('reduce self-follow and self-unfollow', function (test) {
     {
       index: 0,
       date: new Date().toISOString(),
-      body: { type: 'follow', name: 'self', publicKey, index: 0 }
+      body: { type: 'follow', name: 'self', publicKey }
     },
     {
       index: 1,
@@ -297,10 +294,7 @@ tape('file system storage', function (test) {
         test.equal(reduction.latestDate, envelopes[1].message.date, 'reduction latest date')
         test.deepEqual(
           reduction.following[otherPublicKey],
-          {
-            names: ['Anne'],
-            ranges: [{ start: 0, stop: 1 }]
-          },
+          { name: 'Anne', stop: 1 },
           'following Anne'
         )
         done()

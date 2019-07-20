@@ -6,6 +6,5 @@ module.exports = strictJSONObjectSchema({
   name: {
     type: 'string',
     minLength: 1
-  },
-  index: require('./index')
+  }
 })

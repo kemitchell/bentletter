@@ -12,7 +12,6 @@ module.exports = function (reduction, envelope, callback) {
   var dateString = message.date
   var body = message.body
   var type = body.type
-  var ranges
 
   if (!has(reduction, 'latestIndex') || reduction.latestIndex < index) {
     var latestDate = reduction.latestDate
@@ -33,39 +32,21 @@ module.exports = function (reduction, envelope, callback) {
   if (type === 'follow') {
     var followingPublicKey = body.publicKey
     if (followingPublicKey === publicKey) return callback()
-    var startIndex = body.index
-    var name = body.name
     if (!has(reduction, 'following')) reduction.following = {}
     if (!has(reduction.following, followingPublicKey)) {
-      reduction.following[followingPublicKey] = {
-        names: [],
-        ranges: []
-      }
+      reduction.following[followingPublicKey] = { }
     }
-    var record = reduction.following[followingPublicKey]
-    pushToArraySet(record.names, name)
-    ranges = record.ranges
-    var canStart = ranges.every(function (range) {
-      return (
-        has(range, 'start') &&
-        has(range, 'stop') &&
-        !withinRange(startIndex, range)
-      )
-    })
-    if (canStart) ranges.push({ start: startIndex })
+    reduction.following[followingPublicKey].name = body.name
+    delete reduction.following[followingPublicKey].stop
     return callback()
   }
 
   if (type === 'unfollow') {
-    var stopIndex = body.index
     var unfollowingPublicKey = body.publicKey
     if (unfollowingPublicKey === publicKey) return callback()
     if (!has(reduction, 'following')) return callback()
     if (!has(reduction.following, unfollowingPublicKey)) return callback()
-    ranges = reduction.following[unfollowingPublicKey].ranges
-    var lastRange = ranges[ranges.length - 1]
-    var canStop = lastRange.start < stopIndex && !has(lastRange, 'stop')
-    if (canStop) lastRange.stop = stopIndex
+    reduction.following[unfollowingPublicKey].stop = body.index
     return callback()
   }
 
@@ -75,16 +56,11 @@ module.exports = function (reduction, envelope, callback) {
     else pushToArraySet(reduction.uris, uri)
     return callback()
   }
+
+  return callback()
 }
 
 function pushToArraySet (array, element) {
   assert(Array.isArray(array))
   if (array.indexOf(element) === -1) array.push(element)
-}
-
-function withinRange (index, range) {
-  return (
-    range.start < index &&
-    (!has(range, 'end') || range.end < index)
-  )
 }
