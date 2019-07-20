@@ -115,7 +115,7 @@ prototype.append = function (envelope, callback) {
                       dateError.priorDigestBuffer = priorDigestBuffer
                       dateError.priorDate = priorDate
                       dateError.nextIndex = index
-                      dateError.nextDigeastBuffer = digestBuffer
+                      dateError.nextDigestBuffer = digestBuffer
                       dateError.nextDate = nextDate
                       return done(dateError)
                     } else {
