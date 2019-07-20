@@ -304,6 +304,13 @@ tape('file system storage conflict', function (test) {
           test.equal(error.message, 'conflict')
           done()
         })
+      },
+      function checkConflicts (done) {
+        fileSystem.conflicts(publicKey, function (error, conflicts) {
+          if (error) return done(error)
+          test.equal(conflicts.length, 1, 'one conflict')
+          done()
+        })
       }
     ], function () {
       rimraf(directory, function () { })

@@ -268,7 +268,7 @@ prototype.head = function (publicKeyHex, callback) {
   })
 }
 
-prototype.conflicted = function (publicKeyHex, callback) {
+prototype.conflicts = function (publicKeyHex, callback) {
   assert(typeof publicKeyHex === 'string')
   assert(typeof callback === 'function')
   var file = this._conflictsPath(publicKeyHex)
