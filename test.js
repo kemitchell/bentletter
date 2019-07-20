@@ -209,7 +209,7 @@ tape('file system storage', function (test) {
     var messages = [
       {
         index: 0,
-        date: new Date().toISOString(),
+        date: new Date(Date.now() - 3000).toISOString(),
         body: { type: 'follow', name: 'self', publicKey, index: 0 }
       },
       {
@@ -253,7 +253,7 @@ tape('file system storage conflict', function (test) {
     var messages = [
       {
         index: 0,
-        date: new Date().toISOString(),
+        date: new Date(Date.now() - 3000).toISOString(),
         body: { type: 'follow', name: 'self', publicKey, index: 0 }
       },
       {

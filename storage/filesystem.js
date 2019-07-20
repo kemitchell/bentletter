@@ -20,6 +20,7 @@ function FileSystem (options) {
   }
 
   this._directory = options.directory
+  this.maxClockSkew = options.maxClockSkew || (1000 * 60)
 }
 
 var prototype = FileSystem.prototype
@@ -66,10 +67,49 @@ prototype.append = function (envelope, callback) {
         self._head(publicKeyHex, function (headError, head) {
           if (headError) return done(headError)
           if (index === head + 1) {
-            mkdirp(path.dirname(logFile), function (error) {
-              if (error) return done(error)
-              fs.writeFile(logFile, digestBuffer, { flag: 'a' }, done)
-            })
+            runSeries([
+              function checkAgainstPrior (done) {
+                if (index === 0) return done()
+                var priorIndex = index - 1
+                self.read(
+                  publicKeyHex, priorIndex,
+                  function (readError, prior, priorDigestBuffer) {
+                    if (readError) return done(readError)
+                    var nextDate = new Date(envelope.message.date)
+                    var priorDate = new Date(prior.message.date)
+                    if (priorDate >= nextDate) {
+                      var dateError = new Error('date')
+                      dateError.priorIndex = head
+                      dateError.priorDigestBuffer = priorDigestBuffer
+                      dateError.priorDate = priorDate
+                      dateError.nextIndex = index
+                      dateError.nextDigeastBuffer = digestBuffer
+                      dateError.nextDate = nextDate
+                      return done(dateError)
+                    } else {
+                      var now = new Date()
+                      var difference = now.getTime() - nextDate.getTime()
+                      if (difference > self._maxClockSkew) {
+                        var clockError = new Error('future')
+                        clockError.date = nextDate
+                        clockError.now = now
+                        clockError.maxClockSkew = self._maxClockSkew
+                        return done(clockError)
+                      }
+                      done()
+                    }
+                  }
+                )
+              },
+              function writeFile (done) {
+                mkdirp(path.dirname(logFile), function (error) {
+                  if (error) return done(error)
+                  fs.writeFile(
+                    logFile, digestBuffer, { flag: 'a' }, done
+                  )
+                })
+              }
+            ], done)
           } else if (index <= head) {
             self._readDigest(
               publicKeyHex, index,
