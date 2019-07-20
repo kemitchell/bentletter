@@ -249,6 +249,13 @@ tape('file system storage', function (test) {
           done()
         })
       },
+      function list (done) {
+        fileSystem.list(function (error, publicKeys) {
+          if (error) return done(error)
+          test.deepEqual(publicKeys, [publicKey], 'lists public key')
+          done()
+        })
+      },
       function stream (done) {
         var read = []
         fileSystem.createStream(publicKey)

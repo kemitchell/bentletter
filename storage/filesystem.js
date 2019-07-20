@@ -374,6 +374,23 @@ prototype.drop = function (publicKey, callback) {
   rimraf(directory, callback)
 }
 
+// List public keys of stored logs.
+prototype.list = function (callback) {
+  assert(typeof callback === 'function')
+  var publishersPath = this._publishersPath()
+  fs.readdir(
+    publishersPath, { withFileTypes: true },
+    function (error, entries) {
+      if (error) return callback(error)
+      callback(null, entries.reduce(function (result, entry) {
+        return entry.isDirectory()
+          ? result.concat(entry.name)
+          : result
+      }, []))
+    }
+  )
+}
+
 // Path Helper Methods
 
 prototype._envelopePath = function (digest) {
@@ -384,8 +401,12 @@ prototype._envelopesPath = function () {
   return path.join(this._directory, 'envelopes')
 }
 
+prototype._publishersPath = function (publicKey) {
+  return path.join(this._directory, 'publishers')
+}
+
 prototype._publisherPath = function (publicKey) {
-  return path.join(this._directory, 'publishers', publicKey)
+  return path.join(this._publishersPath(), publicKey)
 }
 
 prototype._logPath = function (publicKey) {
