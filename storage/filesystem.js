@@ -424,14 +424,14 @@ prototype.list = function (callback) {
 
 // Path Helper Methods
 
+prototype._envelopesPath = function () {
+  return path.join(this._directory, 'envelopes')
+}
+
 prototype._envelopePath = function (digestHex) {
   assert(typeof digestHex === 'string')
   assert(DIGEST_RE.test(digestHex))
   return path.join(this._envelopesPath(), digestHex)
-}
-
-prototype._envelopesPath = function () {
-  return path.join(this._directory, 'envelopes')
 }
 
 prototype._publishersPath = function () {
