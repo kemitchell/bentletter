@@ -236,6 +236,30 @@ tape('file system storage', function (test) {
           test.ifError(error, 'no append error')
           done()
         })
+      },
+      function stream (done) {
+        var read = []
+        fileSystem.createStream(publicKey)
+          .on('data', function (envelope) {
+            read.push(envelope)
+          })
+          .once('end', function () {
+            test.deepEqual(read[0].envelope, envelopes[0], 'stream first')
+            test.deepEqual(read[1].envelope, envelopes[1], 'stream second')
+            done()
+          })
+      },
+      function reverseStream (done) {
+        var read = []
+        fileSystem.createReverseStream(publicKey)
+          .on('data', function (envelope) {
+            read.push(envelope)
+          })
+          .once('end', function () {
+            test.deepEqual(read[0].envelope, envelopes[1], 'reverse stream first')
+            test.deepEqual(read[1].envelope, envelopes[0], 'reverse stream second')
+            done()
+          })
       }
     ], function () {
       rimraf(directory, function () { })

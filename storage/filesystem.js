@@ -1,11 +1,15 @@
+var BlockStream = require('block-stream')
 var DIGEST_LENGTH = require('../crypto/digest-length')
 var assert = require('nanoassert')
+var from2 = require('from2')
 var fs = require('fs')
 var hash = require('../crypto/hash')
 var mkdirp = require('mkdirp')
 var path = require('path')
+var pump = require('pump')
 var rimraf = require('rimraf')
 var runSeries = require('run-series')
+var through2 = require('through2')
 
 var lock = require('lock').Lock()
 
@@ -194,6 +198,60 @@ prototype._readEnvelope = function (digest, callback) {
       return callback(error)
     }
     callback(null, parsed)
+  })
+}
+
+prototype.createStream = function (publicKeyHex) {
+  assert(typeof publicKeyHex === 'string')
+  var self = this
+  var logFile = this._logPath(publicKeyHex)
+  return pump(
+    fs.createReadStream(logFile),
+    new BlockStream(DIGEST_LENGTH),
+    through2.obj(function (digestBuffer, _, done) {
+      self._readEnvelope(
+        digestBuffer.toString('hex'),
+        function (error, envelope) {
+          if (error) return done(error)
+          done(null, { digest: digestBuffer, envelope })
+        }
+      )
+    })
+  )
+}
+
+prototype.createReverseStream = function (publicKeyHex) {
+  assert(typeof publicKeyHex === 'string')
+  var self = this
+  var nextIndex = null
+  return from2.obj(function (_, done) {
+    runSeries([
+      function readHead (done) {
+        if (nextIndex !== null) return done()
+        self._head(publicKeyHex, function (error, head) {
+          if (error) {
+            if (error.code === 'ENOENT') return done(null, null)
+            return done(error)
+          }
+          nextIndex = head
+          done()
+        })
+      },
+      function readNext (done) {
+        if (nextIndex < 0) return done(null, null)
+        self.read(
+          publicKeyHex, nextIndex,
+          function (error, envelope, digestBuffer) {
+            if (error) return done(error)
+            nextIndex--
+            done(null, { digest: digestBuffer, envelope })
+          }
+        )
+      }
+    ], function (error, result) {
+      if (error) return done(error)
+      done(null, result[1])
+    })
   })
 }
 
