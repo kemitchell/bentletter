@@ -1,5 +1,7 @@
 var BlockStream = require('block-stream')
 var DIGEST_LENGTH = require('../crypto/digest-length')
+var DIGEST_RE = require('../crypto/public-key-re')
+var PUBLIC_KEY_RE = require('../crypto/public-key-re')
 var assert = require('nanoassert')
 var flushWriteStream = require('flush-write-stream')
 var from2 = require('from2')
@@ -201,6 +203,7 @@ prototype.append = function (envelope, callback) {
 // Read an envelope from a log by index.
 prototype.read = function (publicKeyHex, index, callback) {
   assert(typeof publicKeyHex === 'string')
+  assert(PUBLIC_KEY_RE.test(publicKeyHex))
   assert(Number.isSafeInteger(index) && index >= 0)
   assert(typeof callback === 'function')
   var self = this
@@ -252,6 +255,7 @@ prototype._readEnvelope = function (digest, callback) {
 // Stream a log's envelopes in ascending-index order.
 prototype.createStream = function (publicKeyHex) {
   assert(typeof publicKeyHex === 'string')
+  assert(PUBLIC_KEY_RE.test(publicKeyHex))
   var self = this
   var logFile = this._logPath(publicKeyHex)
   return pump(
@@ -272,6 +276,7 @@ prototype.createStream = function (publicKeyHex) {
 // Stream a log's envelopes in decending-index order.
 prototype.createReverseStream = function (publicKeyHex) {
   assert(typeof publicKeyHex === 'string')
+  assert(PUBLIC_KEY_RE.test(publicKeyHex))
   var self = this
   var nextIndex = null
   return from2.obj(function (_, done) {
@@ -308,6 +313,7 @@ prototype.createReverseStream = function (publicKeyHex) {
 // Read a log's head index.
 prototype.head = function (publicKeyHex, callback) {
   assert(typeof publicKeyHex === 'string')
+  assert(PUBLIC_KEY_RE.test(publicKeyHex))
   assert(typeof callback === 'function')
   var file = this._logPath(publicKeyHex)
   fs.stat(file, function (error, stats) {
@@ -322,6 +328,7 @@ prototype.head = function (publicKeyHex, callback) {
 // Read a log's conflicts.
 prototype.conflicts = function (publicKeyHex, callback) {
   assert(typeof publicKeyHex === 'string')
+  assert(PUBLIC_KEY_RE.test(publicKeyHex))
   assert(typeof callback === 'function')
   var file = this._conflictsPath(publicKeyHex)
   fs.readFile(file, function (error, contents) {
@@ -360,6 +367,7 @@ prototype.reduction = function (publicKeyHex, callback) {
 // Recompute a log's reduction.
 prototype.rereduce = function (publicKeyHex, callback) {
   assert(typeof publicKeyHex === 'string')
+  assert(PUBLIC_KEY_RE.test(publicKeyHex))
   var self = this
   var reduction = {}
   pump(
@@ -405,8 +413,9 @@ prototype.list = function (callback) {
     function (error, entries) {
       if (error) return callback(error)
       callback(null, entries.reduce(function (result, entry) {
-        return entry.isDirectory()
-          ? result.concat(entry.name)
+        var name = entry.name
+        return entry.isDirectory() && PUBLIC_KEY_RE.test(name)
+          ? result.concat(name)
           : result
       }, []))
     }
@@ -415,30 +424,40 @@ prototype.list = function (callback) {
 
 // Path Helper Methods
 
-prototype._envelopePath = function (digest) {
-  return path.join(this._envelopesPath(), digest)
+prototype._envelopePath = function (digestHex) {
+  assert(typeof digestHex === 'string')
+  assert(DIGEST_RE.test(digestHex))
+  return path.join(this._envelopesPath(), digestHex)
 }
 
 prototype._envelopesPath = function () {
   return path.join(this._directory, 'envelopes')
 }
 
-prototype._publishersPath = function (publicKey) {
+prototype._publishersPath = function () {
   return path.join(this._directory, 'publishers')
 }
 
-prototype._publisherPath = function (publicKey) {
-  return path.join(this._publishersPath(), publicKey)
+prototype._publisherPath = function (publicKeyHex) {
+  assert(typeof publicKeyHex === 'string')
+  assert(PUBLIC_KEY_RE.test(publicKeyHex))
+  return path.join(this._publishersPath(), publicKeyHex)
 }
 
-prototype._logPath = function (publicKey) {
-  return path.join(this._publisherPath(publicKey), 'log')
+prototype._logPath = function (publicKeyHex) {
+  assert(typeof publicKeyHex === 'string')
+  assert(PUBLIC_KEY_RE.test(publicKeyHex))
+  return path.join(this._publisherPath(publicKeyHex), 'log')
 }
 
-prototype._conflictsPath = function (publicKey) {
-  return path.join(this._publisherPath(publicKey), 'conflicts')
+prototype._conflictsPath = function (publicKeyHex) {
+  assert(typeof publicKeyHex === 'string')
+  assert(PUBLIC_KEY_RE.test(publicKeyHex))
+  return path.join(this._publisherPath(publicKeyHex), 'conflicts')
 }
 
-prototype._reductionPath = function (publicKey) {
-  return path.join(this._publisherPath(publicKey), 'reduction')
+prototype._reductionPath = function (publicKeyHex) {
+  assert(typeof publicKeyHex === 'string')
+  assert(PUBLIC_KEY_RE.test(publicKeyHex))
+  return path.join(this._publisherPath(publicKeyHex), 'reduction')
 }

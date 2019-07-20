@@ -1,3 +1,1 @@
-var sodium = require('sodium-universal')
-
-module.exports = sodium.crypto_generichash_BYTES
+module.exports = require('sodium-universal').crypto_generichash_BYTES
