@@ -65,7 +65,12 @@ prototype.append = function (envelope, callback) {
         done = unlock(done)
         self._head(publicKeyHex, function (headError, head) {
           if (headError) return done(headError)
-          if (index <= head) {
+          if (index === head + 1) {
+            mkdirp(path.dirname(logFile), function (error) {
+              if (error) return done(error)
+              fs.writeFile(logFile, digestBuffer, { flag: 'a' }, done)
+            })
+          } else if (index <= head) {
             self._readDigest(
               publicKeyHex, index,
               function (readError, existingDigestBuffer) {
@@ -87,24 +92,14 @@ prototype.append = function (envelope, callback) {
                 return done(new Error('exists'))
               }
             )
-          } else if (head > index + 1) {
+          } else {
             var gapError = new Error('gap')
             gapError.head = head
             gapError.index = index
             done(gapError)
-          } else {
-            mkdirp(path.dirname(logFile), function (error) {
-              if (error) return done(error)
-              fs.writeFile(logFile, digestBuffer, { flag: 'a' }, done)
-            })
           }
         })
       })
-    },
-
-    function appendToTimeline (done) {
-      // TODO
-      done()
     }
   ], function (error) {
     if (error) return callback(error)
