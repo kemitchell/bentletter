@@ -12,6 +12,7 @@ module.exports = function (reduction, envelope, callback) {
   var dateString = message.date
   var body = message.body
   var type = body.type
+  var ranges
 
   if (!has(reduction, 'latestIndex') || reduction.latestIndex < index) {
     var latestDate = reduction.latestDate
@@ -37,15 +38,21 @@ module.exports = function (reduction, envelope, callback) {
     if (!has(reduction, 'following')) reduction.following = {}
     if (!has(reduction.following, followingPublicKey)) {
       reduction.following[followingPublicKey] = {
-        names: [name],
-        starts: [startIndex],
-        stops: []
+        names: [],
+        ranges: []
       }
-    } else {
-      var record = reduction.following[followingPublicKey]
-      pushToArraySet(record.names, name)
-      pushToArraySet(record.starts, startIndex)
     }
+    var record = reduction.following[followingPublicKey]
+    pushToArraySet(record.names, name)
+    ranges = record.ranges
+    var canStart = ranges.every(function (range) {
+      return (
+        has(range, 'start') &&
+        has(range, 'stop') &&
+        !withinRange(startIndex, range)
+      )
+    })
+    if (canStart) ranges.push({ start: startIndex })
     return callback()
   }
 
@@ -55,7 +62,10 @@ module.exports = function (reduction, envelope, callback) {
     if (unfollowingPublicKey === publicKey) return callback()
     if (!has(reduction, 'following')) return callback()
     if (!has(reduction.following, unfollowingPublicKey)) return callback()
-    pushToArraySet(reduction.following[unfollowingPublicKey].stops, stopIndex)
+    ranges = reduction.following[unfollowingPublicKey].ranges
+    var lastRange = ranges[ranges.length - 1]
+    var canStop = lastRange.start < stopIndex && !has(lastRange, 'stop')
+    if (canStop) lastRange.stop = stopIndex
     return callback()
   }
 
@@ -70,4 +80,11 @@ module.exports = function (reduction, envelope, callback) {
 function pushToArraySet (array, element) {
   assert(Array.isArray(array))
   if (array.indexOf(element) === -1) array.push(element)
+}
+
+function withinRange (index, range) {
+  return (
+    range.start < index &&
+    (!has(range, 'end') || range.end < index)
+  )
 }
