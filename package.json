@@ -25,7 +25,7 @@
     "tape": "^4.11.0"
   },
   "scripts": {
-    "coverage": "nyc npm run test",
+    "coverage": "nyc --reporter=lcov --reporter=text npm run test",
     "test": "node test.js",
     "lint": "standard"
   }
