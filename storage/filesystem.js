@@ -435,10 +435,6 @@ prototype._logPath = function (publicKey) {
   return path.join(this._publisherPath(publicKey), 'log')
 }
 
-prototype._timelinePath = function (publicKey) {
-  return path.join(this._publisherPath(publicKey), 'timeline')
-}
-
 prototype._conflictsPath = function (publicKey) {
   return path.join(this._publisherPath(publicKey), 'conflicts')
 }
