@@ -194,3 +194,96 @@ tape('reduce self-follow and self-unfollow', function (test) {
     }
   )
 })
+
+var FileSystem = require('./storage/filesystem')
+var fs = require('fs')
+var os = require('os')
+var rimraf = require('rimraf')
+
+tape('file system storage', function (test) {
+  fs.mkdtemp(path.join(os.tmpdir(), 'bentletter'), function (error, directory) {
+    test.ifError(error)
+    var keyPair = makeKeyPair()
+    var secretKey = keyPair.secretKey.toString('hex')
+    var publicKey = keyPair.publicKey.toString('hex')
+    var messages = [
+      {
+        index: 0,
+        date: new Date().toISOString(),
+        body: { type: 'follow', name: 'self', publicKey, index: 0 }
+      },
+      {
+        index: 1,
+        date: new Date().toISOString(),
+        body: { type: 'unfollow', publicKey, index: 1 }
+      }
+    ]
+    var envelopes = messages.map(function (message) {
+      var envelope = { publicKey, message }
+      sign({ envelope, secretKey })
+      return envelope
+    })
+    var fileSystem = new FileSystem({ directory })
+    runSeries([
+      function appendFirst (done) {
+        fileSystem.append(envelopes[0], function (error) {
+          test.ifError(error, 'no append error')
+          done()
+        })
+      },
+      function appendSecond (done) {
+        fileSystem.append(envelopes[1], function (error) {
+          test.ifError(error, 'no append error')
+          done()
+        })
+      }
+    ], function () {
+      rimraf(directory, function () { })
+      test.end()
+    })
+  })
+})
+
+tape('file system storage conflict', function (test) {
+  fs.mkdtemp(path.join(os.tmpdir(), 'bentletter'), function (error, directory) {
+    test.ifError(error)
+    var keyPair = makeKeyPair()
+    var secretKey = keyPair.secretKey.toString('hex')
+    var publicKey = keyPair.publicKey.toString('hex')
+    var messages = [
+      {
+        index: 0,
+        date: new Date().toISOString(),
+        body: { type: 'follow', name: 'self', publicKey, index: 0 }
+      },
+      {
+        index: 0,
+        date: new Date().toISOString(),
+        body: { type: 'unfollow', publicKey, index: 1 }
+      }
+    ]
+    var envelopes = messages.map(function (message) {
+      var envelope = { publicKey, message }
+      sign({ envelope, secretKey })
+      return envelope
+    })
+    var fileSystem = new FileSystem({ directory })
+    runSeries([
+      function appendFirst (done) {
+        fileSystem.append(envelopes[0], function (error) {
+          test.ifError(error, 'no append error')
+          done()
+        })
+      },
+      function appendSecond (done) {
+        fileSystem.append(envelopes[1], function (error) {
+          test.equal(error.message, 'conflict')
+          done()
+        })
+      }
+    ], function () {
+      rimraf(directory, function () { })
+      test.end()
+    })
+  })
+})
