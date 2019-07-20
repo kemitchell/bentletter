@@ -29,7 +29,7 @@ function FileSystem (options) {
   }
 
   this._directory = options.directory
-  this.maxClockSkew = options.maxClockSkew || (1000 * 60)
+  this._maxClockSkew = options.maxClockSkew || (1000 * 60)
 }
 
 var prototype = FileSystem.prototype
