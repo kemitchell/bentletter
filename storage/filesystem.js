@@ -68,7 +68,7 @@ prototype.append = function (envelope, callback) {
       var logFile = self._logPath(publicKeyHex)
       lock(logFile, function (unlock) {
         done = unlock(done)
-        self._head(publicKeyHex, function (headError, head) {
+        self.head(publicKeyHex, function (headError, head) {
           if (headError) return done(headError)
           if (index === head + 1) {
             runSeries([
@@ -228,7 +228,7 @@ prototype.createReverseStream = function (publicKeyHex) {
     runSeries([
       function readHead (done) {
         if (nextIndex !== null) return done()
-        self._head(publicKeyHex, function (error, head) {
+        self.head(publicKeyHex, function (error, head) {
           if (error) {
             if (error.code === 'ENOENT') return done(null, null)
             return done(error)
@@ -255,7 +255,7 @@ prototype.createReverseStream = function (publicKeyHex) {
   })
 }
 
-prototype._head = function (publicKeyHex, callback) {
+prototype.head = function (publicKeyHex, callback) {
   assert(typeof publicKeyHex === 'string')
   assert(typeof callback === 'function')
   var file = this._logPath(publicKeyHex)
