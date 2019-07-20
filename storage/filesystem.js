@@ -7,8 +7,10 @@ var hash = require('../crypto/hash')
 var mkdirp = require('mkdirp')
 var path = require('path')
 var pump = require('pump')
+var reduce = require('../reduce')
 var rimraf = require('rimraf')
 var runSeries = require('run-series')
+var runWaterfall = require('run-waterfall')
 var through2 = require('through2')
 
 var lock = require('lock').Lock()
@@ -112,6 +114,27 @@ prototype.append = function (envelope, callback) {
                     logFile, digestBuffer, { flag: 'a' }, done
                   )
                 })
+              },
+              function updateReduction (done) {
+                runWaterfall([
+                  function readCurrent (done) {
+                    if (index === 0) return done(null, {})
+                    self.reduction(publicKeyHex, done)
+                  },
+                  function overwrite (reduction, done) {
+                    reduce(
+                      reduction, envelope,
+                      function (error) {
+                        if (error) return done(error)
+                        fs.writeFile(
+                          self._reductionPath(publicKeyHex),
+                          JSON.stringify(reduction),
+                          done
+                        )
+                      }
+                    )
+                  }
+                ], done)
               }
             ], done)
           } else if (index <= head) {
@@ -288,6 +311,22 @@ prototype.conflicts = function (publicKeyHex, callback) {
   })
 }
 
+prototype.reduction = function (publicKeyHex, callback) {
+  var reductionFile = this._reductionPath(publicKeyHex)
+  fs.readFile(reductionFile, function (error, buffer) {
+    if (error) {
+      if (error.code === 'ENOENT') return callback(null, {})
+      return callback(error)
+    }
+    try {
+      var reduction = JSON.parse(buffer)
+    } catch (error) {
+      return callback(error)
+    }
+    callback(null, reduction)
+  })
+}
+
 prototype._conflict = function (publicKeyHex, firstDigest, secondDigest, callback) {
   assert(typeof publicKeyHex === 'string')
   assert(Buffer.isBuffer(firstDigest))
@@ -329,4 +368,8 @@ prototype._timelinePath = function (publicKey) {
 
 prototype._conflictsPath = function (publicKey) {
   return path.join(this._publisherPath(publicKey), 'conflicts')
+}
+
+prototype._reductionPath = function (publicKey) {
+  return path.join(this._publisherPath(publicKey), 'reduction')
 }
