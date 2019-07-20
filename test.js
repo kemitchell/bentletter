@@ -107,16 +107,16 @@ function testReduction (test, bodies, verify) {
     sign({ envelope, secretKey })
     return envelope
   })
-  var result = {}
+  var reduction = {}
   runSeries(
     envelopes.map(function (envelope) {
       return function (done) {
-        reduce(result, envelope, done)
+        reduce(reduction, envelope, done)
       }
     }),
     function (error) {
       test.ifError(error, 'no error')
-      verify(test, result)
+      verify(test, reduction)
     }
   )
 }

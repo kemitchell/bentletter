@@ -1,8 +1,8 @@
 var assert = require('nanoassert')
 var has = require('has')
 
-module.exports = function (state, envelope, callback) {
-  assert(typeof state === 'object')
+module.exports = function (reduction, envelope, callback) {
+  assert(typeof reduction === 'object')
   assert(typeof envelope === 'object')
   assert(typeof callback === 'function')
 
@@ -13,20 +13,20 @@ module.exports = function (state, envelope, callback) {
   var body = message.body
   var type = body.type
 
-  if (!has(state, 'latestIndex') || state.latestIndex < index) {
-    var latestDate = state.latestDate
+  if (!has(reduction, 'latestIndex') || reduction.latestIndex < index) {
+    var latestDate = reduction.latestDate
     var date = new Date(dateString)
     if (date < latestDate) {
       var error = new Error(
         'Message ' + index + ' is dated earlier than ' +
-        'message ' + state.latestIndex + '.'
+        'message ' + reduction.latestIndex + '.'
       )
-      error.first = state.latestIndex
+      error.first = reduction.latestIndex
       error.second = index
       return callback(error)
     }
-    state.latestIndex = index
-    state.latestDate = date
+    reduction.latestIndex = index
+    reduction.latestDate = date
   }
 
   if (type === 'follow') {
@@ -34,15 +34,15 @@ module.exports = function (state, envelope, callback) {
     if (followingPublicKey === publicKey) return callback()
     var startIndex = body.index
     var name = body.name
-    if (!has(state, 'following')) state.following = {}
-    if (!has(state.following, followingPublicKey)) {
-      state.following[followingPublicKey] = {
+    if (!has(reduction, 'following')) reduction.following = {}
+    if (!has(reduction.following, followingPublicKey)) {
+      reduction.following[followingPublicKey] = {
         names: [name],
         starts: [startIndex],
         stops: []
       }
     } else {
-      var record = state.following[followingPublicKey]
+      var record = reduction.following[followingPublicKey]
       pushToArraySet(record.names, name)
       pushToArraySet(record.starts, startIndex)
     }
@@ -53,16 +53,16 @@ module.exports = function (state, envelope, callback) {
     var stopIndex = body.index
     var unfollowingPublicKey = body.publicKey
     if (unfollowingPublicKey === publicKey) return callback()
-    if (!has(state, 'following')) return callback()
-    if (!has(state.following, unfollowingPublicKey)) return callback()
-    pushToArraySet(state.following[unfollowingPublicKey].stops, stopIndex)
+    if (!has(reduction, 'following')) return callback()
+    if (!has(reduction.following, unfollowingPublicKey)) return callback()
+    pushToArraySet(reduction.following[unfollowingPublicKey].stops, stopIndex)
     return callback()
   }
 
   if (type === 'announce') {
     var uri = body.uri
-    if (!has(state, 'uris')) state.uris = [uri]
-    else pushToArraySet(state.uris, uri)
+    if (!has(reduction, 'uris')) reduction.uris = [uri]
+    else pushToArraySet(reduction.uris, uri)
     return callback()
   }
 }
