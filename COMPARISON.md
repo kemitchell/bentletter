@@ -8,6 +8,8 @@
 
 - Bentletter does not support retweets.
 
+- Bentletter does not support private messages.
+
 - Bentletter does not report metrics.
 
 - Bentletter users only see messages from accounts they follow.
