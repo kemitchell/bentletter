@@ -32,6 +32,28 @@ function FileSystem (options) {
 
 var prototype = FileSystem.prototype
 
+/*
+
+Layout:
+
+/envelopes/{digest} -> JSON
+
+  contents of an envelope
+
+/publishers/{publicKey}/log -> [digest...]
+
+  list of digests in ascending index order
+
+/publishers/{publicKey}/conflicts -> [[digest,digest]...]
+
+  list of pairs of conflicting envelope digests
+
+/publishers/{publicKey}/reduction -> JSON
+
+  contents of the current reduction
+
+*/
+
 // Append an envelope to its log and update the log's reduction.
 prototype.append = function (envelope, callback) {
   assert(typeof envelope === 'object')
