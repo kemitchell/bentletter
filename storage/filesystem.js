@@ -32,6 +32,7 @@ function FileSystem (options) {
 
 var prototype = FileSystem.prototype
 
+// Append an envelope to its log and update the log's reduction.
 prototype.append = function (envelope, callback) {
   assert(typeof envelope === 'object')
   assert(typeof callback === 'function')
@@ -175,6 +176,7 @@ prototype.append = function (envelope, callback) {
   })
 }
 
+// Read an envelope from a log by index.
 prototype.read = function (publicKeyHex, index, callback) {
   assert(typeof publicKeyHex === 'string')
   assert(Number.isSafeInteger(index) && index >= 0)
@@ -225,6 +227,7 @@ prototype._readEnvelope = function (digest, callback) {
   })
 }
 
+// Stream a log's envelopes in ascending-index order.
 prototype.createStream = function (publicKeyHex) {
   assert(typeof publicKeyHex === 'string')
   var self = this
@@ -244,6 +247,7 @@ prototype.createStream = function (publicKeyHex) {
   )
 }
 
+// Stream a log's envelopes in decending-index order.
 prototype.createReverseStream = function (publicKeyHex) {
   assert(typeof publicKeyHex === 'string')
   var self = this
@@ -279,6 +283,7 @@ prototype.createReverseStream = function (publicKeyHex) {
   })
 }
 
+// Read a log's head index.
 prototype.head = function (publicKeyHex, callback) {
   assert(typeof publicKeyHex === 'string')
   assert(typeof callback === 'function')
@@ -292,6 +297,7 @@ prototype.head = function (publicKeyHex, callback) {
   })
 }
 
+// Read a log's conflicts.
 prototype.conflicts = function (publicKeyHex, callback) {
   assert(typeof publicKeyHex === 'string')
   assert(typeof callback === 'function')
@@ -312,6 +318,7 @@ prototype.conflicts = function (publicKeyHex, callback) {
   })
 }
 
+// Read a log's reduction.
 prototype.reduction = function (publicKeyHex, callback) {
   var reductionFile = this._reductionPath(publicKeyHex)
   fs.readFile(reductionFile, function (error, buffer) {
@@ -328,6 +335,7 @@ prototype.reduction = function (publicKeyHex, callback) {
   })
 }
 
+// Recompute a log's reduction.
 prototype.rereduce = function (publicKeyHex, callback) {
   assert(typeof publicKeyHex === 'string')
   var self = this
@@ -358,6 +366,7 @@ prototype._conflict = function (publicKeyHex, firstDigest, secondDigest, callbac
   fs.writeFile(file, entry, { flag: 'a' }, callback)
 }
 
+// Delete all data about a log.
 prototype.drop = function (publicKey, callback) {
   assert(typeof publicKey === 'string')
   assert(typeof callback === 'function')
