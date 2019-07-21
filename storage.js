@@ -26,6 +26,32 @@ function Storage (options) {
   this._db = levelup(options.leveldown)
 }
 
+/*
+
+Storage Layout:
+
+- CONFLICTS/{Hex publicKey}/{Hex digest}:{Hex digest} -> Date seen
+
+- DIGESTS/{Hex digest} -> JSON { publicKeyHex, index }
+
+- LOGS/{Hex public key}/{LexInt index} -> JSON envelope
+
+- PUBLIC_KEYS/{Hex public key} -> Date seen
+
+- REDUCTIONS/{Hex public key} -> JSON reduction
+
+*/
+
+// Storage Key Prefixes
+
+var CONFLICTS = 'conflicts'
+var DIGESTS = 'digests'
+var LOGS = 'logs'
+var PUBLIC_KEYS = 'publicKeys'
+var REDUCTIONS = 'reductions'
+
+// Methods
+
 var prototype = Storage.prototype
 
 prototype.close = function (optionalCallback) {
@@ -53,7 +79,7 @@ prototype.append = function (envelope, callback) {
 
   function writeEnvelope (done) {
     db.put(
-      envelopeKey(digestHex),
+      digestKey(digestHex),
       JSON.stringify({ publicKeyHex, index }),
       done
     )
@@ -105,7 +131,7 @@ prototype.append = function (envelope, callback) {
                 function writePublicKey (done) {
                   if (index !== 0) return done()
                   db.put(
-                    `publicKeys/${publicKeyHex}`,
+                    `${PUBLIC_KEYS}/${publicKeyHex}`,
                     new Date().toISOString(),
                     done
                   )
@@ -188,7 +214,7 @@ prototype._conflict = function (
 
   var sorted = [firstDigestHex, secondDigestHex].sort()
   this._db.put(
-    `conflicts/${publicKeyHex}/${sorted[0]}:${sorted[1]}`,
+    `${CONFLICTS}/${publicKeyHex}/${sorted[0]}:${sorted[1]}`,
     new Date().toISOString(),
     callback
   )
@@ -215,8 +241,8 @@ prototype.head = function (publicKeyHex, callback) {
 
   this._db.createKeyStream({
     reverse: true,
-    gt: `logs/${publicKeyHex}/`,
-    lt: `logs/${publicKeyHex}/~`,
+    gt: `${LOGS}/${publicKeyHex}/`,
+    lt: `${LOGS}/${publicKeyHex}/~`,
     limit: 1
   })
     .once('data', function (key) {
@@ -256,8 +282,8 @@ prototype.createLogStream = function (publicKeyHex) {
   var self = this
   return pump(
     self._db.createReadStream({
-      gt: `logs/${publicKeyHex}/`,
-      lt: `logs/${publicKeyHex}/~`,
+      gt: `${LOGS}/${publicKeyHex}/`,
+      lt: `${LOGS}/${publicKeyHex}/~`,
       keys: false,
       values: true
     }),
@@ -275,8 +301,8 @@ prototype.createReverseLogStream = function (publicKeyHex) {
   var self = this
   return pump(
     self._db.createReadStream({
-      gt: `logs/${publicKeyHex}/`,
-      lt: `logs/${publicKeyHex}/~`,
+      gt: `${LOGS}/${publicKeyHex}/`,
+      lt: `${LOGS}/${publicKeyHex}/~`,
       keys: false,
       values: true,
       reverse: true
@@ -294,8 +320,8 @@ prototype.createConflictsStream = function (publicKeyHex) {
 
   return pump(
     this._db.createReadStream({
-      gt: `conflicts/${publicKeyHex}/`,
-      lt: `conflicts/${publicKeyHex}/~`,
+      gt: `${CONFLICTS}/${publicKeyHex}/`,
+      lt: `${CONFLICTS}/${publicKeyHex}/~`,
       keys: true,
       values: false
     }),
@@ -309,8 +335,8 @@ prototype.createConflictsStream = function (publicKeyHex) {
 prototype.createPublicKeysStream = function () {
   return pump(
     this._db.createReadStream({
-      gt: 'publicKeys/',
-      lt: 'publicKeys/~',
+      gt: `${PUBLIC_KEYS}/`,
+      lt: `${PUBLIC_KEYS}/~`,
       keys: true,
       values: false
     }),
@@ -382,21 +408,21 @@ function entryKey (publicKeyHex, index) {
   assert(Number.isSafeInteger(index))
   assert(index >= 0)
 
-  return `logs/${publicKeyHex}/${encodeIndex(index)}`
+  return `${LOGS}/${publicKeyHex}/${encodeIndex(index)}`
 }
 
-function envelopeKey (digestHex) {
+function digestKey (digestHex) {
   assert(typeof digestHex === 'string')
   assert(DIGEST_RE.test(digestHex))
 
-  return `envelopes/${digestHex}`
+  return `${DIGESTS}/${digestHex}`
 }
 
 function reductionKey (publicKeyHex) {
   assert(typeof publicKeyHex === 'string')
   assert(PUBLIC_KEY_RE.test(publicKeyHex))
 
-  return `reductions/${publicKeyHex}`
+  return `${REDUCTIONS}/${publicKeyHex}`
 }
 
 /*
