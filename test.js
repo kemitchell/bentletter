@@ -1,11 +1,15 @@
 var AJV = require('ajv')
 var crypto = require('crypto')
 var deepEqual = require('deep-equal')
+var encodingDown = require('encoding-down')
 var glob = require('glob')
 var hash = require('./crypto/hash')
+var level = require('./storage/level')
 var makeKeyPair = require('./crypto/make-key-pair')
+var memdown = require('memdown')
 var path = require('path')
 var reduce = require('./reduce')
+var rimraf = require('rimraf')
 var runSeries = require('run-series')
 var sign = require('./crypto/sign')
 var tape = require('tape')
@@ -67,7 +71,6 @@ tape('reduce follow', function (test) {
   var publicKey = crypto.randomBytes(32).toString('hex')
   var firstName = 'first'
   var secondName = 'second'
-  var start = 100
   var stop = 200
   testReduction(test, [
     { type: 'follow', publicKey, name: firstName },
@@ -193,168 +196,168 @@ tape('reduce self-follow and self-unfollow', function (test) {
   )
 })
 
-var FileSystem = require('./storage/filesystem')
-var fs = require('fs')
-var os = require('os')
-var rimraf = require('rimraf')
-
-tape('file system storage', function (test) {
-  fs.mkdtemp(path.join(os.tmpdir(), 'bentletter'), function (error, directory) {
-    test.ifError(error)
-    var keyPair = makeKeyPair()
-    var secretKey = keyPair.secretKey.toString('hex')
-    var publicKey = keyPair.publicKey.toString('hex')
-    var otherKeyPair = makeKeyPair()
-    var otherPublicKey = otherKeyPair.publicKey.toString('hex')
-    var messages = [
-      {
-        index: 0,
-        date: new Date(Date.now() - 3000).toISOString(),
-        body: {
-          type: 'follow',
-          name: 'Anne',
-          publicKey: otherPublicKey,
-          index: 0
-        }
-      },
-      {
-        index: 1,
-        date: new Date().toISOString(),
-        body: {
-          type: 'unfollow',
-          publicKey: otherPublicKey,
-          index: 1
-        }
+tape('storage', function (test) {
+  var storage = level({ leveldown: encodingDown(memdown()) })
+  var keyPair = makeKeyPair()
+  var secretKey = keyPair.secretKey.toString('hex')
+  var publicKey = keyPair.publicKey.toString('hex')
+  var otherKeyPair = makeKeyPair()
+  var otherPublicKey = otherKeyPair.publicKey.toString('hex')
+  var messages = [
+    {
+      index: 0,
+      date: new Date(Date.now() - 3000).toISOString(),
+      body: {
+        type: 'follow',
+        name: 'Anne',
+        publicKey: otherPublicKey,
+        index: 0
       }
-    ]
-    var envelopes = messages.map(function (message) {
-      var envelope = { publicKey, message }
-      sign({ envelope, secretKey })
-      return envelope
-    })
-    var fileSystem = new FileSystem({ directory })
-    runSeries([
-      function appendFirst (done) {
-        fileSystem.append(envelopes[0], function (error) {
-          test.ifError(error, 'no append error')
-          done()
+    },
+    {
+      index: 1,
+      date: new Date().toISOString(),
+      body: {
+        type: 'unfollow',
+        publicKey: otherPublicKey,
+        index: 1
+      }
+    }
+  ]
+  var envelopes = messages.map(function (message) {
+    var envelope = { publicKey, message }
+    sign({ envelope, secretKey })
+    return envelope
+  })
+  runSeries([
+    function appendFirst (done) {
+      storage.append(envelopes[0], function (error) {
+        test.ifError(error, 'no append error')
+        done()
+      })
+    },
+    function appendSecond (done) {
+      storage.append(envelopes[1], function (error) {
+        test.ifError(error, 'no append error')
+        done()
+      })
+    },
+    function list (done) {
+      var publicKeys = []
+      storage.createPublicKeysStream()
+        .on('data', function (publicKey) {
+          publicKeys.push(publicKey)
         })
-      },
-      function appendSecond (done) {
-        fileSystem.append(envelopes[1], function (error) {
-          test.ifError(error, 'no append error')
-          done()
-        })
-      },
-      function list (done) {
-        fileSystem.list(function (error, publicKeys) {
-          if (error) return done(error)
+        .once('end', function () {
           test.deepEqual(publicKeys, [publicKey], 'lists public key')
           done()
         })
-      },
-      function stream (done) {
-        var read = []
-        fileSystem.createStream(publicKey)
-          .on('data', function (envelope) {
-            read.push(envelope)
-          })
-          .once('end', function () {
-            test.deepEqual(read[0].envelope, envelopes[0], 'stream first')
-            test.deepEqual(read[1].envelope, envelopes[1], 'stream second')
-            done()
-          })
-      },
-      function reverseStream (done) {
-        var read = []
-        fileSystem.createReverseStream(publicKey)
-          .on('data', function (envelope) {
-            read.push(envelope)
-          })
-          .once('end', function () {
-            test.deepEqual(read[0].envelope, envelopes[1], 'reverse stream first')
-            test.deepEqual(read[1].envelope, envelopes[0], 'reverse stream second')
-            done()
-          })
-      },
-      checkReduction,
-      function checkRereduction (done) {
-        fileSystem.rereduce(publicKey, function (error) {
-          if (error) return done(error)
-          checkReduction(done)
+    },
+    function stream (done) {
+      var read = []
+      storage.createLogStream(publicKey)
+        .on('data', function (envelope) {
+          read.push(envelope)
         })
-      }
-    ], function () {
-      rimraf(directory, function () { })
-      test.end()
-    })
-    function checkReduction (done) {
-      fileSystem.reduction(publicKey, function (error, reduction) {
+        .once('end', function () {
+          test.deepEqual(read[0], envelopes[0], 'stream first')
+          test.deepEqual(read[1], envelopes[1], 'stream second')
+          done()
+        })
+    },
+    function reverseStream (done) {
+      var read = []
+      storage.createReverseLogStream(publicKey)
+        .on('data', function (envelope) {
+          read.push(envelope)
+        })
+        .once('end', function () {
+          test.deepEqual(read[0], envelopes[1], 'reverse stream first')
+          test.deepEqual(read[1], envelopes[0], 'reverse stream second')
+          done()
+        })
+    },
+    checkReduction,
+    function checkRereduction (done) {
+      storage.rereduce(publicKey, function (error) {
         if (error) return done(error)
-        test.equal(reduction.latestIndex, envelopes[1].message.index, 'reduction latest index')
-        test.equal(reduction.latestDate, envelopes[1].message.date, 'reduction latest date')
-        test.deepEqual(
-          reduction.following[otherPublicKey],
-          { name: 'Anne', stop: 1 },
-          'following Anne'
-        )
-        done()
+        checkReduction(done)
       })
     }
+  ], function () {
+    storage.close()
+    test.end()
   })
+
+  function checkReduction (done) {
+    storage.reduction(publicKey, function (error, reduction) {
+      if (error) return done(error)
+      test.equal(reduction.latestIndex, envelopes[1].message.index, 'reduction latest index')
+      test.equal(reduction.latestDate, envelopes[1].message.date, 'reduction latest date')
+      test.deepEqual(
+        reduction.following[otherPublicKey],
+        { name: 'Anne', stop: 1 },
+        'following Anne'
+      )
+      done()
+    })
+  }
 })
 
-tape('file system storage conflict', function (test) {
-  fs.mkdtemp(path.join(os.tmpdir(), 'bentletter'), function (error, directory) {
-    test.ifError(error)
-    var keyPair = makeKeyPair()
-    var secretKey = keyPair.secretKey.toString('hex')
-    var publicKey = keyPair.publicKey.toString('hex')
-    var messages = [
-      {
-        index: 0,
-        date: new Date(Date.now() - 3000).toISOString(),
-        body: { type: 'follow', name: 'self', publicKey, index: 0 }
-      },
-      {
-        index: 0,
-        date: new Date().toISOString(),
-        body: { type: 'unfollow', publicKey, index: 1 }
-      }
-    ]
-    var envelopes = messages.map(function (message) {
-      var envelope = { publicKey, message }
-      sign({ envelope, secretKey })
-      return envelope
-    })
-    var digests = envelopes.map(hash)
-    var fileSystem = new FileSystem({ directory })
-    runSeries([
-      function appendFirst (done) {
-        fileSystem.append(envelopes[0], function (error) {
-          test.ifError(error, 'no append error')
-          done()
+tape('storage conflict', function (test) {
+  var storage = level({ leveldown: encodingDown(memdown()) })
+  var keyPair = makeKeyPair()
+  var secretKey = keyPair.secretKey.toString('hex')
+  var publicKey = keyPair.publicKey.toString('hex')
+  var messages = [
+    {
+      index: 0,
+      date: new Date(Date.now() - 3000).toISOString(),
+      body: { type: 'follow', name: 'self', publicKey, index: 0 }
+    },
+    {
+      index: 0,
+      date: new Date().toISOString(),
+      body: { type: 'unfollow', publicKey, index: 1 }
+    }
+  ]
+  var envelopes = messages.map(function (message) {
+    var envelope = { publicKey, message }
+    sign({ envelope, secretKey })
+    return envelope
+  })
+  var digests = envelopes.map(hash).map(function (digest) {
+    return digest.toString('hex')
+  }).sort()
+  runSeries([
+    function appendFirst (done) {
+      storage.append(envelopes[0], function (error) {
+        test.ifError(error, 'no append error')
+        done()
+      })
+    },
+    function appendSecond (done) {
+      storage.append(envelopes[1], function (error) {
+        test.equal(error.message, 'conflict')
+        done()
+      })
+    },
+    function checkConflicts (done) {
+      var conflicts = []
+      storage.createConflictsStream(publicKey)
+        .on('data', function (conflict) {
+          conflicts.push(conflict)
         })
-      },
-      function appendSecond (done) {
-        fileSystem.append(envelopes[1], function (error) {
-          test.equal(error.message, 'conflict')
-          done()
-        })
-      },
-      function checkConflicts (done) {
-        fileSystem.conflicts(publicKey, function (error, conflicts) {
-          if (error) return done(error)
+        .on('end', function () {
           test.equal(conflicts.length, 1, 'one conflict')
-          test.assert(digests[0].equals(conflicts[0][0]))
-          test.assert(digests[1].equals(conflicts[0][1]))
+          test.equal(conflicts[0][0], digests[0], 'first digest')
+          test.equal(conflicts[0][1], digests[1], 'second digest')
           done()
         })
-      }
-    ], function () {
-      rimraf(directory, function () { })
-      test.end()
-    })
+    }
+  ], function () {
+    storage.close()
+    test.end()
   })
 })
 
@@ -420,48 +423,70 @@ tape.skip('timeline', function (test) {
     })
   })
 
-  fs.mkdtemp(path.join(os.tmpdir(), 'bentletter'), function (error, directory) {
-    test.ifError(error)
-    var fileSystem = new FileSystem({ directory })
-    var allEnvelopes = players.reduce(function (envelopes, player) {
-      return envelopes.concat(player.envelopes)
-    }, [])
-    runSeries(
-      allEnvelopes.map(function (envelope) {
-        return function (done) {
-          fileSystem.append(envelope, done)
-        }
-      }),
-      function () {
-        fileSystem.timeline(
-          {
-            publicKey: anna.publicKey,
-            start: new Date(),
-            limit: 100
-          },
-          function (error, timeline) {
-            test.ifError(error)
-            var expecting = []
-              .concat(anna.envelopes.slice(0, 1))
-              .concat(bob.envelopes.slice(0, 2))
-            expecting.every(function (logEnvelope) {
-              test.assert(
-                timeline.some(function (timelineEnvelope) {
-                  return deepEqual(logEnvelope, timelineEnvelope)
-                })
-              )
-            })
-            var sortedByDate = timeline.sort(function (a, b) {
-              var aDate = new Date(a.message.date)
-              var bDate = new Date(b.message.date)
-              return aDate - bDate
-            })
-            test.deepEqual(timeline, sortedByDate)
-            rimraf(directory, function () { })
-            test.end()
-          }
-        )
+  var storage = level({ leveldown: encodingDown(memdown()) })
+  var allEnvelopes = players.reduce(function (envelopes, player) {
+    return envelopes.concat(player.envelopes)
+  }, [])
+  runSeries(
+    allEnvelopes.map(function (envelope) {
+      return function (done) {
+        storage.append(envelope, done)
       }
-    )
+    }),
+    function () {
+      storage.timeline(
+        {
+          publicKey: anna.publicKey,
+          start: new Date(),
+          limit: 100
+        },
+        function (error, timeline) {
+          test.ifError(error)
+          var expecting = []
+            .concat(anna.envelopes.slice(0, 1))
+            .concat(bob.envelopes.slice(0, 2))
+          expecting.every(function (logEnvelope) {
+            test.assert(
+              timeline.some(function (timelineEnvelope) {
+                return deepEqual(logEnvelope, timelineEnvelope)
+              })
+            )
+          })
+          var sortedByDate = timeline.sort(function (a, b) {
+            var aDate = new Date(a.message.date)
+            var bDate = new Date(b.message.date)
+            return aDate - bDate
+          })
+          test.deepEqual(timeline, sortedByDate)
+          rimraf(directory, function () { })
+          test.end()
+        }
+      )
+    }
+  )
+})
+
+tape('level', function (test) {
+  var storage = level({ leveldown: encodingDown(memdown()) })
+  var keyPair = makeKeyPair()
+  var publicKeyHex = keyPair.publicKey.toString('hex')
+  var secretKeyHex = keyPair.secretKey.toString('hex')
+  var envelope = {
+    publicKey: publicKeyHex,
+    message: {
+      index: 0,
+      date: new Date().toISOString(),
+      body: { type: 'post', content: ['first'] }
+    }
+  }
+  sign({ envelope, secretKey: secretKeyHex })
+  storage.append(envelope, function (error) {
+    test.ifError(error, 'append error')
+    storage.head(publicKeyHex, function (error, head) {
+      test.ifError(error, 'head error')
+      test.equal(head, 0)
+      storage.close()
+      test.end()
+    })
   })
 })

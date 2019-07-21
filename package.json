@@ -3,10 +3,14 @@
   "dependencies": {
     "ajv": "^6.10.1",
     "block-stream": "0.0.9",
+    "encoding-down": "^6.1.0",
     "fast-json-stable-stringify": "^2.0.0",
     "flush-write-stream": "^2.0.0",
     "from2": "^2.3.0",
     "has": "^1.0.3",
+    "json-parse-errback": "^2.0.1",
+    "levelup": "^4.1.0",
+    "lexicographic-integer": "^1.1.0",
     "lock": "^1.1.0",
     "mkdirp": "^0.5.1",
     "nanoassert": "^2.0.0",
@@ -21,6 +25,7 @@
   "devDependencies": {
     "deep-equal": "^1.0.1",
     "glob": "^7.1.4",
+    "memdown": "^4.1.0",
     "nyc": "^14.1.1",
     "standard": "^13.0.2",
     "tape": "^4.11.0"
