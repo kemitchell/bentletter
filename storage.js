@@ -360,8 +360,7 @@ prototype.reduction = function (publicKeyHex, callback) {
   assert(PUBLIC_KEY_RE.test(publicKeyHex))
   assert(typeof callback === 'function')
 
-  var db = this._db
-  db.get(
+  this._db.get(
     reductionKey(publicKeyHex),
     nullForNotFound(callback, function (json) {
       parseJSON(json, callback)
