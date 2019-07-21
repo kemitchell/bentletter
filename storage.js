@@ -33,7 +33,7 @@ Storage Layout:
 
 - CONFLICTS/{Hex publicKey}/{Hex digest}:{Hex digest} -> Date seen
 
-- DIGESTS/{Hex digest} -> JSON { publicKeyHex, index }
+- DIGESTS/{Hex digest} -> JSON [ publicKeyHex, index ]
 
 - LOGS/{Hex public key}/{LexInt index} -> JSON envelope
 
@@ -81,7 +81,7 @@ prototype.append = function (envelope, callback) {
   function writeEnvelope (done) {
     db.put(
       digestKey(digestHex),
-      JSON.stringify({ publicKeyHex, index }),
+      JSON.stringify([publicKeyHex, index]),
       done
     )
   }
