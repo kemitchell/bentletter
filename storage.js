@@ -19,6 +19,7 @@ function Storage (options) {
   assert(typeof options === 'object')
   assert(typeof options.leveldown === 'object')
 
+  /* istanbul ignore if */
   if (!(this instanceof Storage)) {
     return new Storage(options)
   }
@@ -89,6 +90,7 @@ prototype.append = function (envelope, callback) {
     lock(publicKeyHex, function (unlock) {
       done = unlock(done)
       self.head(publicKeyHex, function (error, head) {
+        /* istanbul ignore if */
         if (error) return done(error)
         if (index === head + 1) {
           runSeries([
@@ -98,6 +100,7 @@ prototype.append = function (envelope, callback) {
               self.read(
                 publicKeyHex, priorIndex,
                 function (error, prior) {
+                  /* istanbul ignore if */
                   if (error) return done(error)
                   var nextDate = new Date(envelope.message.date)
                   var priorDate = new Date(prior.message.date)
@@ -155,6 +158,7 @@ prototype.append = function (envelope, callback) {
                   reduce(
                     reduction, envelope,
                     function (error) {
+                      /* istanbul ignore if */
                       if (error) return done(error)
                       self._overwriteReduction(
                         publicKeyHex, reduction, done
@@ -169,6 +173,7 @@ prototype.append = function (envelope, callback) {
           self.read(
             publicKeyHex, index,
             function (error, existing) {
+              /* istanbul ignore if */
               if (error) return done(error)
               var existingDigestHex = hash(existing).toString('hex')
               if (existingDigestHex !== digestHex) {
@@ -177,6 +182,7 @@ prototype.append = function (envelope, callback) {
                   existingDigestHex,
                   digestHex,
                   function (error) {
+                    /* istanbul ignore if */
                     if (error) return done(error)
                     var conflictError = new Error('conflict')
                     conflictError.firstDigestHex = existingDigestHex
@@ -379,6 +385,7 @@ prototype.rereduce = function (publicKeyHex, callback) {
         reduce(reduction, envelope, done)
       }),
       function (error) {
+        /* istanbul ignore if */
         if (error) return callback(error)
         self._overwriteReduction(
           publicKeyHex, reduction, callback
@@ -393,9 +400,11 @@ prototype.rereduce = function (publicKeyHex, callback) {
 function nullForNotFound (done, optionalHandler) {
   return function (error, result) {
     if (error) {
+      /* istanbul ignore else */
       if (error.notFound) return done(null, null)
-      return done(error)
+      else return done(error)
     }
+    /* istanbul ignore else */
     if (optionalHandler) optionalHandler(result)
     else done(null, result)
   }
