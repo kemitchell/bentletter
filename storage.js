@@ -28,6 +28,13 @@ function Storage (options) {
 
 var prototype = Storage.prototype
 
+prototype.close = function (optionalCallback) {
+  this._db.close(optionalCallback)
+}
+
+// Log Entry Methods
+
+// Append an envelope entry to a log.
 prototype.append = function (envelope, callback) {
   assert(typeof envelope === 'object')
   assert(typeof callback === 'function')
@@ -168,6 +175,39 @@ prototype.append = function (envelope, callback) {
   }
 }
 
+prototype._conflict = function (
+  publicKeyHex, firstDigestHex, secondDigestHex, callback
+) {
+  assert(typeof publicKeyHex === 'string')
+  assert(PUBLIC_KEY_RE.test(publicKeyHex))
+  assert(typeof firstDigestHex === 'string')
+  assert(DIGEST_RE.test(firstDigestHex))
+  assert(typeof secondDigestHex === 'string')
+  assert(DIGEST_RE.test(secondDigestHex))
+  assert(typeof callback === 'function')
+
+  var sorted = [firstDigestHex, secondDigestHex].sort()
+  this._db.put(
+    `conflicts/${publicKeyHex}/${sorted[0]}:${sorted[1]}`,
+    new Date().toISOString(),
+    callback
+  )
+}
+
+prototype._overwriteReduction = function (publicKeyHex, reduction, callback) {
+  assert(typeof publicKeyHex === 'string')
+  assert(PUBLIC_KEY_RE.test(publicKeyHex))
+  assert(typeof reduction === 'object')
+  assert(typeof callback === 'function')
+
+  this._db.put(
+    reductionKey(publicKeyHex),
+    JSON.stringify(reduction),
+    callback
+  )
+}
+
+// Read the highest index of a log.
 prototype.head = function (publicKeyHex, callback) {
   assert(typeof publicKeyHex === 'string')
   assert(PUBLIC_KEY_RE.test(publicKeyHex))
@@ -189,6 +229,7 @@ prototype.head = function (publicKeyHex, callback) {
     })
 }
 
+// Read a specific log entry.
 prototype.read = function (publicKeyHex, index, callback) {
   assert(typeof publicKeyHex === 'string')
   assert(PUBLIC_KEY_RE.test(publicKeyHex))
@@ -205,39 +246,9 @@ prototype.read = function (publicKeyHex, index, callback) {
   )
 }
 
-prototype._conflict = function (
-  publicKeyHex, firstDigestHex, secondDigestHex, callback
-) {
-  assert(typeof publicKeyHex === 'string')
-  assert(PUBLIC_KEY_RE.test(publicKeyHex))
-  assert(typeof firstDigestHex === 'string')
-  assert(DIGEST_RE.test(firstDigestHex))
-  assert(typeof secondDigestHex === 'string')
-  assert(DIGEST_RE.test(secondDigestHex))
-  assert(typeof callback === 'function')
+// Streaming Interface
 
-  var sorted = [firstDigestHex, secondDigestHex].sort()
-  this._db.put(
-    `conflicts/${publicKeyHex}/${sorted[0]}:${sorted[1]}`,
-    new Date().toISOString(),
-    callback
-  )
-}
-
-prototype.reduction = function (publicKeyHex, callback) {
-  assert(typeof publicKeyHex === 'string')
-  assert(PUBLIC_KEY_RE.test(publicKeyHex))
-  assert(typeof callback === 'function')
-
-  var db = this._db
-  db.get(
-    reductionKey(publicKeyHex),
-    nullForNotFound(callback, function (json) {
-      parseJSON(json, callback)
-    })
-  )
-}
-
+// Stream the entries of a log in ascending-index order.
 prototype.createLogStream = function (publicKeyHex) {
   assert(typeof publicKeyHex === 'string')
   assert(PUBLIC_KEY_RE.test(publicKeyHex))
@@ -256,6 +267,7 @@ prototype.createLogStream = function (publicKeyHex) {
   )
 }
 
+// Stream the entries of a log in reverse-index order.
 prototype.createReverseLogStream = function (publicKeyHex) {
   assert(typeof publicKeyHex === 'string')
   assert(PUBLIC_KEY_RE.test(publicKeyHex))
@@ -275,6 +287,7 @@ prototype.createReverseLogStream = function (publicKeyHex) {
   )
 }
 
+// Stream conflicting entries to a log.
 prototype.createConflictsStream = function (publicKeyHex) {
   assert(typeof publicKeyHex === 'string')
   assert(PUBLIC_KEY_RE.test(publicKeyHex))
@@ -292,6 +305,7 @@ prototype.createConflictsStream = function (publicKeyHex) {
   )
 }
 
+// Stream log public keys.
 prototype.createPublicKeysStream = function () {
   return pump(
     this._db.createReadStream({
@@ -306,19 +320,24 @@ prototype.createPublicKeysStream = function () {
   )
 }
 
-prototype._overwriteReduction = function (publicKeyHex, reduction, callback) {
+// Reduction Interface
+
+// Read the reduction of a log.
+prototype.reduction = function (publicKeyHex, callback) {
   assert(typeof publicKeyHex === 'string')
   assert(PUBLIC_KEY_RE.test(publicKeyHex))
-  assert(typeof reduction === 'object')
   assert(typeof callback === 'function')
 
-  this._db.put(
+  var db = this._db
+  db.get(
     reductionKey(publicKeyHex),
-    JSON.stringify(reduction),
-    callback
+    nullForNotFound(callback, function (json) {
+      parseJSON(json, callback)
+    })
   )
 }
 
+// Recoputer the reduction of a log.
 prototype.rereduce = function (publicKeyHex, callback) {
   assert(typeof publicKeyHex === 'string')
   assert(PUBLIC_KEY_RE.test(publicKeyHex))
@@ -343,9 +362,7 @@ prototype.rereduce = function (publicKeyHex, callback) {
   })
 }
 
-prototype.close = function (optionalCallback) {
-  this._db.close(optionalCallback)
-}
+// Helper Functions
 
 function nullForNotFound (done, optionalHandler) {
   return function (error, result) {
