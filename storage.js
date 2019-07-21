@@ -219,7 +219,7 @@ prototype._conflict = function (
   var sorted = [firstDigestHex, secondDigestHex].sort()
   this._db.put(
     `conflicts/${publicKeyHex}/${sorted[0]}:${sorted[1]}`,
-    '',
+    new Date().toISOString(),
     callback
   )
 }
