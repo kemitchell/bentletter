@@ -74,11 +74,11 @@ prototype.append = function (envelope, callback) {
   var digestHex = digestBuffer.toString('hex')
 
   runSeries([
-    writeEnvelope,
+    writeDigest,
     appendToLog
   ], callback)
 
-  function writeEnvelope (done) {
+  function writeDigest (done) {
     db.put(
       digestKey(digestHex),
       JSON.stringify([publicKeyHex, index]),
@@ -130,23 +130,21 @@ prototype.append = function (envelope, callback) {
               )
             },
             function writeEntry (done) {
-              runSeries([
-                function writePublicKey (done) {
-                  if (index !== 0) return done()
-                  db.put(
-                    `${PUBLIC_KEYS}/${publicKeyHex}`,
-                    new Date().toISOString(),
-                    done
-                  )
-                },
-                function writeEnvelope (done) {
-                  db.put(
-                    entryKey(publicKeyHex, index),
-                    JSON.stringify(envelope),
-                    done
-                  )
+              var batch = [
+                {
+                  type: 'put',
+                  key: entryKey(publicKeyHex, index),
+                  value: JSON.stringify(envelope)
                 }
-              ], done)
+              ]
+              if (index === 0) {
+                batch.push({
+                  type: 'put',
+                  key: `${PUBLIC_KEYS}/${publicKeyHex}`,
+                  value: new Date().toISOString()
+                })
+              }
+              db.batch(batch, done)
             },
             function overwriteReduction (done) {
               runWaterfall([
