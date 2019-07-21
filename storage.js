@@ -2,6 +2,7 @@ var DIGEST_RE = require('./crypto/public-key-re')
 var PUBLIC_KEY_RE = require('./crypto/public-key-re')
 var assert = require('assert')
 var flushWriteStream = require('flush-write-stream')
+var has = require('has')
 var hash = require('./crypto/hash')
 var levelup = require('levelup')
 var lexint = require('lexicographic-integer')
@@ -9,6 +10,7 @@ var lock = require('lock').Lock()
 var parseJSON = require('json-parse-errback')
 var pump = require('pump')
 var reduce = require('./reduce')
+var runParallel = require('run-parallel')
 var runSeries = require('run-series')
 var runWaterfall = require('run-waterfall')
 var through2 = require('through2')
@@ -41,15 +43,24 @@ Storage Layout:
 
 - REDUCTIONS/{Hex public key} -> JSON reduction
 
+- FOLLOWERS/{Hex public key}/{Hex public key} -> optional Number stop
+
+- TIMELINES/{Hex public key}/{ISO8601 date}:{Hex public key} -> JSON envelope
+
+- MENTIONS/{Hex public key}/{ISO8601 date}:{Hex public key} -> JSON envelope
+
 */
 
 // Storage Key Prefixes
 
 var CONFLICTS = 'conflicts'
 var DIGESTS = 'digests'
+var FOLLOWERS = 'followers'
 var LOGS = 'logs'
+var MENTIONS = 'mentions'
 var PUBLIC_KEYS = 'publicKeys'
 var REDUCTIONS = 'reductions'
+var TIMELINES = 'timelines'
 
 // Methods
 
@@ -158,8 +169,18 @@ prototype.append = function (envelope, callback) {
                     function (error) {
                       /* istanbul ignore if */
                       if (error) return done(error)
-                      self._overwriteReduction(
-                        publicKeyHex, reduction, done
+                      self._batchForReduction(
+                        reduction,
+                        envelope,
+                        function (error, batch) {
+                          if (error) return done(error)
+                          batch.push({
+                            type: 'put',
+                            key: reductionKey(publicKeyHex),
+                            value: JSON.stringify(reduction)
+                          })
+                          db.batch(batch, done)
+                        }
                       )
                     }
                   )
@@ -203,6 +224,98 @@ prototype.append = function (envelope, callback) {
       })
     })
   }
+}
+
+prototype._batchForReduction = function (
+  reduction, envelope, callback
+) {
+  assert(typeof reduction === 'object')
+  assert(typeof envelope === 'object')
+  assert(typeof callback === 'function')
+
+  var message = envelope.message
+  var type = message.type
+  var self = this
+  var batch = []
+  var mentions = has(message, 'content')
+    ? message.content
+      .filter(function (element) {
+        return has(element, 'publicKey')
+      })
+      .map(function (element) {
+        return element.publicKey
+      })
+    : []
+  if (message.type === 'introduction') {
+    mentions.push(message.firstPublicKey)
+    mentions.push(message.secondPublicKey)
+  }
+  if (type === 'follow' || type === 'unfollow') {
+    var following = reduction.following
+    Object.keys(following).forEach(function (followed) {
+      batch.push({
+        type: 'put',
+        key: followKey(message.publicKey, followed),
+        value: following[followed]
+      })
+    })
+  }
+  var sender = envelope.publicKey
+  runParallel([
+    function appendToTimelines (done) {
+      self.createFollowersStream(sender)
+        .once('error', function (error) {
+          this.destroy()
+          done(error)
+        })
+        .on('data', function (follower) {
+          var withinRange = (
+            !has(follower, 'stop') ||
+            follower.stop < message.index
+          )
+          if (withinRange) {
+            batch.push({
+              type: 'put',
+              key: timelineKey(follower, message.date, sender),
+              value: JSON.stringify(envelope)
+            })
+          }
+        })
+        .once('end', function () {
+          done()
+        })
+    },
+    function appendToMentions (done) {
+      runParallel(
+        mentions.map(function (recipient) {
+          return function (done) {
+            self.reduction(recipient, function (error, reduction) {
+              if (error) return done(error)
+              var following = (
+                has(reduction.following, sender) &&
+                (
+                  !has(reduction.following[sender], 'stop') ||
+                  reduction.following[sender].stop <= message.index
+                )
+              )
+              if (following) {
+                batch.push({
+                  type: 'put',
+                  key: mentionKey(recipient, message.date, sender),
+                  value: JSON.stringify(envelope)
+                })
+              }
+              done()
+            })
+          }
+        }),
+        done
+      )
+    }
+  ], function (error) {
+    if (error) return callback(error)
+    callback(null, batch)
+  })
 }
 
 prototype._conflict = function (
@@ -350,6 +463,69 @@ prototype.createPublicKeysStream = function () {
   )
 }
 
+// Stream followers.
+prototype.createFollowersStream = function (publicKeyHex) {
+  assert(typeof publicKeyHex === 'string')
+  assert(PUBLIC_KEY_RE.test(publicKeyHex))
+
+  return pump(
+    this._db.createReadStream({
+      gt: `${FOLLOWERS}/${publicKeyHex}/`,
+      lt: `${FOLLOWERS}/${publicKeyHex}/~`,
+      keys: true,
+      values: true
+    }),
+    through2.obj(function (entry, _, done) {
+      parseJSON(entry.value, function (error, parsed) {
+        if (error) return done(error)
+        done(null, {
+          publicKey: entry.key.split('/')[2],
+          name: parsed.name,
+          stop: parsed.stop
+        })
+      })
+    })
+  )
+}
+
+// Stream timeline in reverse chronological order.
+prototype.createTimelineStream = function (publicKeyHex) {
+  assert(typeof publicKeyHex === 'string')
+  assert(PUBLIC_KEY_RE.test(publicKeyHex))
+
+  return pump(
+    this._db.createReadStream({
+      gt: `${TIMELINES}/${publicKeyHex}/`,
+      lt: `${TIMELINES}/${publicKeyHex}/~`,
+      keys: false,
+      values: true,
+      reverse: true
+    }),
+    through2.obj(function (json, _, done) {
+      parseJSON(json, done)
+    })
+  )
+}
+
+// Stream mentions in reverse chronological order.
+prototype.createMentionsStream = function (publicKeyHex) {
+  assert(typeof publicKeyHex === 'string')
+  assert(PUBLIC_KEY_RE.test(publicKeyHex))
+
+  return pump(
+    this._db.createReadStream({
+      gt: `${MENTIONS}/${publicKeyHex}/`,
+      lt: `${MENTIONS}/${publicKeyHex}/~`,
+      keys: false,
+      values: true,
+      reverse: true
+    }),
+    through2.obj(function (json, _, done) {
+      parseJSON(json, done)
+    })
+  )
+}
+
 // Reduction Interface
 
 // Read the reduction of a log.
@@ -444,4 +620,31 @@ function encodeIndex (index) {
   assert(index >= 0)
 
   return lexint.pack(index, 'hex')
+}
+
+function followKey (followed, following) {
+  assert(typeof followed === 'string')
+  assert(PUBLIC_KEY_RE.test(followed))
+  assert(typeof following === 'string')
+  assert(PUBLIC_KEY_RE.test(following))
+
+  return `${FOLLOWERS}/${followed}/${following}`
+}
+
+function timelineKey (recipient, date, sender) {
+  assert(typeof recipient === 'string')
+  assert(PUBLIC_KEY_RE.test(recipient))
+  assert(typeof sender === 'string')
+  assert(PUBLIC_KEY_RE.test(sender))
+
+  return `${TIMELINES}/${recipient}/${date}:${sender}`
+}
+
+function mentionKey (recipient, date, sender) {
+  assert(typeof recipient === 'string')
+  assert(PUBLIC_KEY_RE.test(recipient))
+  assert(typeof sender === 'string')
+  assert(PUBLIC_KEY_RE.test(sender))
+
+  return `${MENTIONS}/${recipient}/${date}:${sender}`
 }

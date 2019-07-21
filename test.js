@@ -360,7 +360,7 @@ tape('storage conflict', function (test) {
   })
 })
 
-tape.skip('timeline', function (test) {
+tape('timeline', function (test) {
   var anna = {
     keyPair: makeKeyPair(),
     bodies: [
@@ -407,7 +407,7 @@ tape.skip('timeline', function (test) {
     var backdate = new Date('2019-01-01')
     var publicKey = player.keyPair.publicKey.toString('hex')
     var secretKey = player.keyPair.secretKey.toString('hex')
-    player.publcKey = publicKey
+    player.publicKey = publicKey
     player.envelopes = player.bodies.map(function (body, bodyIndex) {
       var date = new Date(
         backdate.getTime() +
@@ -433,14 +433,12 @@ tape.skip('timeline', function (test) {
       }
     }),
     function () {
-      storage.timeline(
-        {
-          publicKey: anna.publicKey,
-          start: new Date(),
-          limit: 100
-        },
-        function (error, timeline) {
-          test.ifError(error)
+      var timeline = []
+      storage.createTimelineStream(charlie.publicKey)
+        .on('data', function (envelope) {
+          timeline.push(envelope)
+        })
+        .once('end', function () {
           var expecting = []
             .concat(anna.envelopes.slice(0, 1))
             .concat(bob.envelopes.slice(0, 2))
@@ -459,8 +457,7 @@ tape.skip('timeline', function (test) {
           test.deepEqual(timeline, sortedByDate)
           storage.close()
           test.end()
-        }
-      )
+        })
     }
   )
 })

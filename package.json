@@ -16,6 +16,7 @@
     "nanoassert": "^2.0.0",
     "pump": "^3.0.0",
     "rimraf": "^2.6.3",
+    "run-parallel": "^1.1.9",
     "run-series": "^1.1.8",
     "run-waterfall": "^1.1.6",
     "sodium-universal": "^2.0.0",
