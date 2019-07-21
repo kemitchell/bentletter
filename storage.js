@@ -1,32 +1,32 @@
-var DIGEST_RE = require('../crypto/public-key-re')
-var PUBLIC_KEY_RE = require('../crypto/public-key-re')
+var DIGEST_RE = require('./crypto/public-key-re')
+var PUBLIC_KEY_RE = require('./crypto/public-key-re')
 var assert = require('assert')
 var flushWriteStream = require('flush-write-stream')
-var hash = require('../crypto/hash')
+var hash = require('./crypto/hash')
 var levelup = require('levelup')
 var lexint = require('lexicographic-integer')
 var lock = require('lock').Lock()
 var parseJSON = require('json-parse-errback')
 var pump = require('pump')
-var reduce = require('../reduce')
+var reduce = require('./reduce')
 var runSeries = require('run-series')
 var runWaterfall = require('run-waterfall')
 var through2 = require('through2')
 
-module.exports = LevelStorage
+module.exports = Storage
 
-function LevelStorage (options) {
+function Storage (options) {
   assert(typeof options === 'object')
   assert(typeof options.leveldown === 'object')
 
-  if (!(this instanceof LevelStorage)) {
-    return new LevelStorage(options)
+  if (!(this instanceof Storage)) {
+    return new Storage(options)
   }
 
   this._db = levelup(options.leveldown)
 }
 
-var prototype = LevelStorage.prototype
+var prototype = Storage.prototype
 
 prototype.append = function (envelope, callback) {
   assert(typeof envelope === 'object')

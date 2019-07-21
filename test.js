@@ -1,15 +1,14 @@
 var AJV = require('ajv')
+var Storage = require('./storage')
 var crypto = require('crypto')
 var deepEqual = require('deep-equal')
 var encodingDown = require('encoding-down')
 var glob = require('glob')
 var hash = require('./crypto/hash')
-var level = require('./storage/level')
 var makeKeyPair = require('./crypto/make-key-pair')
 var memdown = require('memdown')
 var path = require('path')
 var reduce = require('./reduce')
-var rimraf = require('rimraf')
 var runSeries = require('run-series')
 var sign = require('./crypto/sign')
 var tape = require('tape')
@@ -197,7 +196,7 @@ tape('reduce self-follow and self-unfollow', function (test) {
 })
 
 tape('storage', function (test) {
-  var storage = level({ leveldown: encodingDown(memdown()) })
+  var storage = new Storage({ leveldown: encodingDown(memdown()) })
   var keyPair = makeKeyPair()
   var secretKey = keyPair.secretKey.toString('hex')
   var publicKey = keyPair.publicKey.toString('hex')
@@ -305,7 +304,7 @@ tape('storage', function (test) {
 })
 
 tape('storage conflict', function (test) {
-  var storage = level({ leveldown: encodingDown(memdown()) })
+  var storage = new Storage({ leveldown: encodingDown(memdown()) })
   var keyPair = makeKeyPair()
   var secretKey = keyPair.secretKey.toString('hex')
   var publicKey = keyPair.publicKey.toString('hex')
@@ -423,7 +422,7 @@ tape.skip('timeline', function (test) {
     })
   })
 
-  var storage = level({ leveldown: encodingDown(memdown()) })
+  var storage = new Storage({ leveldown: encodingDown(memdown()) })
   var allEnvelopes = players.reduce(function (envelopes, player) {
     return envelopes.concat(player.envelopes)
   }, [])
@@ -458,35 +457,10 @@ tape.skip('timeline', function (test) {
             return aDate - bDate
           })
           test.deepEqual(timeline, sortedByDate)
-          rimraf(directory, function () { })
+          storage.close()
           test.end()
         }
       )
     }
   )
-})
-
-tape('level', function (test) {
-  var storage = level({ leveldown: encodingDown(memdown()) })
-  var keyPair = makeKeyPair()
-  var publicKeyHex = keyPair.publicKey.toString('hex')
-  var secretKeyHex = keyPair.secretKey.toString('hex')
-  var envelope = {
-    publicKey: publicKeyHex,
-    message: {
-      index: 0,
-      date: new Date().toISOString(),
-      body: { type: 'post', content: ['first'] }
-    }
-  }
-  sign({ envelope, secretKey: secretKeyHex })
-  storage.append(envelope, function (error) {
-    test.ifError(error, 'append error')
-    storage.head(publicKeyHex, function (error, head) {
-      test.ifError(error, 'head error')
-      test.equal(head, 0)
-      storage.close()
-      test.end()
-    })
-  })
 })
