@@ -45,7 +45,11 @@ prototype.append = function (envelope, callback) {
   ], callback)
 
   function writeEnvelope (done) {
-    db.put(envelopeKey(digestHex), JSON.stringify(envelope), done)
+    db.put(
+      envelopeKey(digestHex),
+      JSON.stringify({ publicKeyHex, index }),
+      done
+    )
   }
 
   function appendToLog (done) {
@@ -63,11 +67,12 @@ prototype.append = function (envelope, callback) {
                 function (error, prior) {
                   if (error) return done(error)
                   var nextDate = new Date(envelope.message.date)
-                  var priorDate = new Date(prior.envelope.message.date)
+                  var priorDate = new Date(prior.message.date)
                   if (priorDate >= nextDate) {
                     var dateError = new Error('date')
+                    var priorDigestBuffer = hash(prior)
                     dateError.priorIndex = head
-                    dateError.priorDigestBuffer = Buffer.from(prior.digestHex, 'hex')
+                    dateError.priorDigestBuffer = priorDigestBuffer
                     dateError.priorDate = priorDate
                     dateError.nextIndex = index
                     dateError.nextDigestBuffer = digestBuffer
@@ -101,7 +106,7 @@ prototype.append = function (envelope, callback) {
                 function writeEnvelope (done) {
                   db.put(
                     entryKey(publicKeyHex, index),
-                    digestHex,
+                    JSON.stringify(envelope),
                     done
                   )
                 }
@@ -128,10 +133,11 @@ prototype.append = function (envelope, callback) {
             }
           ], done)
         } else if (index <= head) {
-          self._readEntryDigest(
+          self.read(
             publicKeyHex, index,
-            function (error, existingDigestHex) {
+            function (error, existing) {
               if (error) return done(error)
+              var existingDigestHex = hash(existing).toString('hex')
               if (existingDigestHex !== digestHex) {
                 return self._conflict(
                   publicKeyHex,
@@ -191,46 +197,10 @@ prototype.read = function (publicKeyHex, index, callback) {
   assert(index >= 0)
   assert(typeof callback === 'function')
 
-  var self = this
-  runWaterfall([
-    function readDigest (done) {
-      self._readEntryDigest(publicKeyHex, index, done)
-    },
-    function readEnvelope (digestHex, done) {
-      self._envelopeByDigest(digestHex, function (error, envelope) {
-        if (error) return done(error)
-        done(null, { digestHex, envelope })
-      })
-    }
-  ], callback)
-}
-
-prototype._readEntryDigest = function (publicKeyHex, index, callback) {
-  assert(typeof publicKeyHex === 'string')
-  assert(PUBLIC_KEY_RE.test(publicKeyHex))
-  assert(typeof index === 'number')
-  assert(Number.isSafeInteger(index))
-  assert(index >= 0)
-  assert(typeof callback === 'function')
-
   this._db.get(
     entryKey(publicKeyHex, index),
-    nullForNotFound(callback)
-  )
-}
-
-prototype._envelopeByDigest = function (digestHex, callback) {
-  assert(typeof digestHex === 'string')
-  assert(DIGEST_RE.test(digestHex))
-  assert(typeof callback === 'function')
-
-  this._db.get(
-    envelopeKey(digestHex),
     nullForNotFound(callback, function (json) {
-      parseJSON(json, function (error, envelope) {
-        if (error) return callback(error)
-        callback(null, envelope)
-      })
+      parseJSON(json, callback)
     })
   )
 }
@@ -280,8 +250,8 @@ prototype.createLogStream = function (publicKeyHex) {
       keys: false,
       values: true
     }),
-    through2.obj(function (digestHex, _, done) {
-      self._envelopeByDigest(digestHex, done)
+    through2.obj(function (json, _, done) {
+      parseJSON(json, done)
     })
   )
 }
@@ -299,8 +269,8 @@ prototype.createReverseLogStream = function (publicKeyHex) {
       values: true,
       reverse: true
     }),
-    through2.obj(function (digestHex, _, done) {
-      self._envelopeByDigest(digestHex, done)
+    through2.obj(function (json, _, done) {
+      parseJSON(json, done)
     })
   )
 }
