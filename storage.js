@@ -242,10 +242,7 @@ prototype.append = function (envelope, callback) {
       flushWriteStream.obj(function (envelope, _, done) {
         var batch = []
         var keyArguments = [
-          publicKeyHex,
-          date,
-          followed,
-          envelope.message.index
+          publicKeyHex, date, followed, envelope.message.index
         ]
         var value = JSON.stringify(envelope)
         // Copy to timeline.
@@ -341,15 +338,13 @@ var sychronousIndexers = [
   },
 
   function publicKey (envelope) {
-    if (envelope.message.index) {
-      return [
-        {
-          type: 'put',
-          key: `${PUBLIC_KEYS}/${envelope.publicKey}`,
-          value: new Date().toISOString()
-        }
-      ]
-    }
+    return [
+      {
+        type: 'put',
+        key: `${PUBLIC_KEYS}/${envelope.publicKey}`,
+        value: new Date().toISOString()
+      }
+    ]
   },
 
   function reply (envelope) {
@@ -380,10 +375,9 @@ function mentionedIn (publicKeyHex, envelope) {
   assert(typeof publicKeyHex === 'string')
   assert(PUBLIC_KEY_RE.test(publicKeyHex))
   assert(typeof envelope === 'object')
-  return mentionsInEnvelope(envelope)
-    .some(function (mention) {
-      return mention.publicKey === publicKeyHex
-    })
+  return mentionsInEnvelope(envelope).some(function (mention) {
+    return mention.publicKey === publicKeyHex
+  })
 }
 
 prototype._batchForReduction = function (
