@@ -82,6 +82,9 @@ prototype.append = function (envelope, callback) {
   var db = this._db
   var publicKeyHex = envelope.publicKey
   var index = envelope.message.index
+  var body = envelope.message.body
+  var message = envelope.message
+  var date = message.date
   var digestBuffer = hash(envelope)
   var digestHex = digestBuffer.toString('hex')
   var reduction
@@ -237,8 +240,8 @@ prototype.append = function (envelope, callback) {
   }
 
   function copyNewlyFollowedEnvelopes (done) {
-    if (envelope.message.body.type !== 'follow') return done()
-    var followed = envelope.message.body.publicKey
+    if (body.type !== 'follow') return done()
+    var followed = body.publicKey
     var stopped = (
       has(reduction, 'following') &&
       has(reduction.following[followed], 'stop')
@@ -250,7 +253,7 @@ prototype.append = function (envelope, callback) {
         var batch = []
         var keyArguments = [
           publicKeyHex,
-          envelope.message.date,
+          date,
           followed,
           envelope.message.index
         ]
@@ -297,9 +300,8 @@ prototype.append = function (envelope, callback) {
         parseJSON(entry.value, function (error, envelope) {
           if (error) return done(error)
           if (envelope.publicKey !== unfollowed) return done()
-          var index = envelope.message.index
           var batch = []
-          if (index > stop) {
+          if (envelope.message.index > stop) {
             batch.push({
               type: 'del',
               key: entry.key
