@@ -7,6 +7,7 @@ var hash = require('./crypto/hash')
 var levelup = require('levelup')
 var lexint = require('lexicographic-integer')
 var lock = require('lock').Lock()
+var mentionsInEnvelope = require('./mentions-in-envelope')
 var parseJSON = require('json-parse-errback')
 var pump = require('pump')
 var reduce = require('./reduce')
@@ -83,10 +84,13 @@ prototype.append = function (envelope, callback) {
   var index = envelope.message.index
   var digestBuffer = hash(envelope)
   var digestHex = digestBuffer.toString('hex')
+  var reduction
 
   runSeries([
     writeDigest,
-    appendToLog
+    appendToLog,
+    copyNewlyFollowed,
+    deleteNewlyUnfollowed
   ], callback)
 
   function writeDigest (done) {
@@ -163,7 +167,8 @@ prototype.append = function (envelope, callback) {
                   if (index === 0) return done(null, {})
                   self.reduction(publicKeyHex, done)
                 },
-                function overwrite (reduction, done) {
+                function overwrite (updatedReduction, done) {
+                  reduction = updatedReduction
                   reduce(
                     reduction, envelope,
                     function (error) {
@@ -224,6 +229,89 @@ prototype.append = function (envelope, callback) {
       })
     })
   }
+
+  function copyNewlyFollowed (done) {
+    if (envelope.message.body.type !== 'follow') return done()
+    var followed = envelope.message.body.publicKey
+    var stopped = (
+      has(reduction, 'following') &&
+      has(reduction.following[followed], 'stop')
+    )
+    if (stopped) return done()
+    pump(
+      self.createLogStream(followed),
+      flushWriteStream.obj(function (envelope, _, done) {
+        var batch = []
+        var keyArguments = [
+          publicKeyHex,
+          envelope.message.date,
+          followed,
+          envelope.message.index
+        ]
+        var value = JSON.stringify(envelope)
+        // Copy to timeline.
+        batch.push({
+          type: 'put',
+          key: timelineKey.apply(null, keyArguments),
+          value
+        })
+        // If mentioned, copy to mentions.
+        var mentions = mentionsInEnvelope(envelope)
+        var mentioned = mentions.some(function (mention) {
+          return mention.publicKey === publicKeyHex
+        })
+        if (mentioned) {
+          batch.push({
+            type: 'put',
+            key: mentionKey.apply(null, keyArguments),
+            value
+          })
+        }
+        db.batch(batch, done)
+      }),
+      done
+    )
+  }
+
+  function deleteNewlyUnfollowed (done) {
+    if (envelope.message.body.type !== 'unfollow') return done()
+    var unfollowed = envelope.message.body.publicKey
+    var stopped = (
+      has(reduction, 'following') &&
+      has(reduction.following[unfollowed], 'stop')
+    )
+    if (!stopped) return done()
+    var stop = reduction.following[unfollowed].stop
+    pump(
+      db.createReadStream({
+        gt: `${TIMELINES}/${publicKeyHex}/`,
+        lt: `${TIMELINES}/${publicKeyHex}/~`,
+        keys: true,
+        values: false,
+        reverse: true
+      }),
+      flushWriteStream.obj(function (key, _, done) {
+        var parsed = key.split('/')[2].split('@')
+        var publicKeyHex = parsed[1]
+        var index = decodeIndex(parsed[2])
+        if (publicKeyHex !== unfollowed) return done()
+        var batch = []
+        if (index > stop) batch.push({ type: 'del', key })
+        var mentions = mentionsInEnvelope(envelope)
+        var mentioned = mentions.some(function (mention) {
+          return mention.publicKey === publicKeyHex
+        })
+        if (mentioned) {
+          batch.push({
+            type: 'del',
+            key: key.replace(`${TIMELINES}/`, `${MENTIONS}/`)
+          })
+        }
+        db.batch(batch, done)
+      }),
+      done
+    )
+  }
 }
 
 prototype._batchForReduction = function (
@@ -234,61 +322,54 @@ prototype._batchForReduction = function (
   assert(typeof callback === 'function')
 
   var message = envelope.message
-  var type = message.type
+  var type = message.body.type
   var self = this
   var batch = []
-  var mentions = has(message, 'content')
-    ? message.content
-      .filter(function (element) {
-        return has(element, 'publicKey')
-      })
-      .map(function (element) {
-        return element.publicKey
-      })
-    : []
-  if (message.type === 'introduction') {
-    mentions.push(message.firstPublicKey)
-    mentions.push(message.secondPublicKey)
-  }
-  if (type === 'follow' || type === 'unfollow') {
-    var following = reduction.following
-    Object.keys(following).forEach(function (followed) {
-      batch.push({
-        type: 'put',
-        key: followKey(message.publicKey, followed),
-        value: following[followed]
-      })
-    })
-  }
+  var mentions = mentionsInEnvelope(envelope)
   var sender = envelope.publicKey
   runParallel([
     function appendToTimelines (done) {
-      self.createFollowersStream(sender)
-        .once('error', function (error) {
-          this.destroy()
-          done(error)
-        })
-        .on('data', function (follower) {
+      pump(
+        self.createFollowersStream(sender),
+        flushWriteStream.obj(function (follower, _, done) {
           var withinRange = (
             !has(follower, 'stop') ||
-            follower.stop < message.index
+            follower.stop <= message.index
           )
           if (withinRange) {
             batch.push({
               type: 'put',
-              key: timelineKey(follower, message.date, sender),
+              key: timelineKey(
+                follower.publicKey,
+                message.date,
+                sender,
+                message.index
+              ),
               value: JSON.stringify(envelope)
             })
           }
-        })
-        .once('end', function () {
           done()
-        })
+        }),
+        done
+      )
     },
     function appendToMentions (done) {
       runParallel(
-        mentions.map(function (recipient) {
+        mentions.map(function (mention) {
           return function (done) {
+            var type = mention.type
+            var recipient = mention.publicKey
+            if (type === 'follow' || type === 'unfollow') {
+              var following = reduction.following || {}
+              Object.keys(following).forEach(function (followed) {
+                batch.push({
+                  type: 'put',
+                  key: followKey(followed, envelope.publicKey),
+                  value: JSON.stringify(following[followed])
+                })
+              })
+              return done()
+            }
             self.reduction(recipient, function (error, reduction) {
               if (error) return done(error)
               var following = (
@@ -301,7 +382,9 @@ prototype._batchForReduction = function (
               if (following) {
                 batch.push({
                   type: 'put',
-                  key: mentionKey(recipient, message.date, sender),
+                  key: mentionKey(
+                    recipient, message.date, sender, message.index
+                  ),
                   value: JSON.stringify(envelope)
                 })
               }
@@ -489,7 +572,7 @@ prototype.createFollowersStream = function (publicKeyHex) {
 }
 
 // Stream timeline in reverse chronological order.
-prototype.createTimelineStream = function (publicKeyHex) {
+prototype.createTimelineStream = function (publicKeyHex, direction) {
   assert(typeof publicKeyHex === 'string')
   assert(PUBLIC_KEY_RE.test(publicKeyHex))
 
@@ -499,7 +582,7 @@ prototype.createTimelineStream = function (publicKeyHex) {
       lt: `${TIMELINES}/${publicKeyHex}/~`,
       keys: false,
       values: true,
-      reverse: true
+      reverse: direction === 'reverse'
     }),
     through2.obj(function (json, _, done) {
       parseJSON(json, done)
@@ -607,12 +690,10 @@ function reductionKey (publicKeyHex) {
   return `${REDUCTIONS}/${publicKeyHex}`
 }
 
-/*
 function decodeIndex (hex) {
   assert(typeof hex === 'string')
   return lexint.unpack(hex, 'hex')
 }
-*/
 
 function encodeIndex (index) {
   assert(typeof index === 'number')
@@ -631,20 +712,20 @@ function followKey (followed, following) {
   return `${FOLLOWERS}/${followed}/${following}`
 }
 
-function timelineKey (recipient, date, sender) {
+function timelineKey (recipient, date, sender, index) {
   assert(typeof recipient === 'string')
   assert(PUBLIC_KEY_RE.test(recipient))
   assert(typeof sender === 'string')
   assert(PUBLIC_KEY_RE.test(sender))
 
-  return `${TIMELINES}/${recipient}/${date}:${sender}`
+  return `${TIMELINES}/${recipient}/${date}@${sender}@${encodeIndex(index)}`
 }
 
-function mentionKey (recipient, date, sender) {
+function mentionKey (recipient, date, sender, index) {
   assert(typeof recipient === 'string')
   assert(PUBLIC_KEY_RE.test(recipient))
   assert(typeof sender === 'string')
   assert(PUBLIC_KEY_RE.test(sender))
 
-  return `${MENTIONS}/${recipient}/${date}:${sender}`
+  return `${MENTIONS}/${recipient}/${date}@${sender}@${encodeIndex(index)}`
 }

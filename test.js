@@ -276,6 +276,17 @@ tape('storage', function (test) {
           done()
         })
     },
+    function streamFollowers (done) {
+      var read = []
+      storage.createFollowersStream(otherPublicKey)
+        .on('data', function (follower) {
+          read.push(follower)
+        })
+        .once('end', function () {
+          test.equal(read[0].publicKey, publicKey)
+          done()
+        })
+    },
     checkReduction,
     function checkRereduction (done) {
       storage.rereduce(publicKey, function (error) {
@@ -363,59 +374,91 @@ tape('storage conflict', function (test) {
 tape('timeline', function (test) {
   var anna = {
     keyPair: makeKeyPair(),
-    bodies: [
-      { type: 'post', content: ['first post'] },
-      { type: 'post', content: ['second post'] },
-      { type: 'post', content: ['third post'] }
+    messages: [
+      {
+        index: 0,
+        date: new Date('2019-01-01').toISOString(),
+        body: { type: 'post', content: ['first post'] }
+      },
+      {
+        index: 1,
+        date: new Date('2019-01-03').toISOString(),
+        body: { type: 'post', content: ['second post'] }
+      },
+      {
+        index: 2,
+        date: new Date('2019-01-05').toISOString(),
+        body: { type: 'post', content: ['third post'] }
+      }
     ]
   }
   var bob = {
     keyPair: makeKeyPair(),
-    bodies: [
-      { type: 'post', content: ['first post'] },
-      { type: 'post', content: ['second post'] },
-      { type: 'post', content: ['third post'] }
+    messages: [
+      {
+        index: 0,
+        date: new Date('2019-01-02').toISOString(),
+        body: { type: 'post', content: ['first post'] }
+      },
+      {
+        index: 1,
+        date: new Date('2019-01-04').toISOString(),
+        body: { type: 'post', content: ['second post'] }
+      },
+      {
+        index: 2,
+        date: new Date('2019-01-06').toISOString(),
+        body: { type: 'post', content: ['third post'] }
+      }
     ]
   }
   var charlie = {
     keyPair: makeKeyPair(),
-    bodies: [
+    messages: [
       {
-        type: 'follow',
-        name: 'anna',
-        publicKey: anna.keyPair.publicKey.toString('hex')
+        index: 0,
+        date: new Date('2019-02-01').toISOString(),
+        body: {
+          type: 'follow',
+          name: 'anna',
+          publicKey: anna.keyPair.publicKey.toString('hex')
+        }
       },
       {
-        type: 'unfollow',
-        publicKey: anna.keyPair.publicKey.toString('hex'),
-        index: 1
+        index: 1,
+        date: new Date('2019-02-02').toISOString(),
+        body: {
+          type: 'unfollow',
+          publicKey: anna.keyPair.publicKey.toString('hex'),
+          index: 0
+        }
       },
       {
-        type: 'follow',
-        name: 'bob',
-        publicKey: bob.keyPair.publicKey.toString('hex')
+        index: 2,
+        date: new Date('2019-02-03').toISOString(),
+        body: {
+          type: 'follow',
+          name: 'bob',
+          publicKey: bob.keyPair.publicKey.toString('hex')
+        }
       },
       {
-        type: 'unfollow',
-        publicKey: bob.keyPair.publicKey.toString('hex'),
-        index: 2
+        index: 3,
+        date: new Date('2019-02-04').toISOString(),
+        body: {
+          type: 'unfollow',
+          publicKey: bob.keyPair.publicKey.toString('hex'),
+          index: 1
+        }
       }
     ]
   }
   var players = [anna, bob, charlie]
   players.forEach(function (player, playerIndex) {
-    var backdate = new Date('2019-01-01')
     var publicKey = player.keyPair.publicKey.toString('hex')
     var secretKey = player.keyPair.secretKey.toString('hex')
     player.publicKey = publicKey
-    player.envelopes = player.bodies.map(function (body, bodyIndex) {
-      var date = new Date(
-        backdate.getTime() +
-        (bodyIndex * 60000) +
-        (playerIndex * 1000)
-      )
-        .toISOString()
-      var message = { index: bodyIndex, date, body }
+    player.envelopes = player.messages.map(function (message) {
       var envelope = { publicKey, message }
       sign({ envelope, secretKey })
       return envelope
@@ -442,13 +485,14 @@ tape('timeline', function (test) {
           var expecting = []
             .concat(anna.envelopes.slice(0, 1))
             .concat(bob.envelopes.slice(0, 2))
-          expecting.every(function (logEnvelope) {
+          expecting.forEach(function (expected) {
             test.assert(
               timeline.some(function (timelineEnvelope) {
-                return deepEqual(logEnvelope, timelineEnvelope)
+                return deepEqual(expected, timelineEnvelope)
               })
             )
           })
+          test.equal(timeline.length, expecting.length, 'length')
           var sortedByDate = timeline.sort(function (a, b) {
             var aDate = new Date(a.message.date)
             var bDate = new Date(b.message.date)
