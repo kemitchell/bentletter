@@ -336,9 +336,11 @@ tape('storage conflict', function (test) {
     sign({ envelope, secretKey })
     return envelope
   })
-  var digests = envelopes.map(hash).map(function (digest) {
-    return digest.toString('hex')
-  })
+  var digests = envelopes
+    .map(hash)
+    .map(function (digest) {
+      return digest.toString('hex')
+    })
   runSeries([
     function appendFirst (done) {
       storage.append(envelopes[0], function (error) {
