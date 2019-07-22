@@ -287,25 +287,24 @@ prototype.append = function (envelope, callback) {
     )
     if (!stopped) return done()
     var stop = reduction.following[unfollowed].stop
-    // TODO: Use .on('data') on this stream and .destroy() > stop.
-    pump(
-      db.createReadStream({
-        gt: `${TIMELINES}/${publicKeyHex}/`,
-        lt: `${TIMELINES}/${publicKeyHex}/~`,
-        keys: true,
-        values: true,
-        reverse: true
-      }),
-      flushWriteStream.obj(function (entry, _, done) {
+    var batch = []
+    db.createReadStream({
+      gt: `${TIMELINES}/${publicKeyHex}/`,
+      lt: `${TIMELINES}/${publicKeyHex}/~`,
+      keys: true,
+      values: true,
+      reverse: true
+    })
+      .once('error', function (error) {
+        this.destroy()
+        done(error)
+      })
+      .on('data', function (entry) {
         parseJSON(entry.value, function (error, envelope) {
-          if (error) return done(error)
-          if (envelope.publicKey !== unfollowed) return done()
-          var batch = []
+          if (error) return
+          if (envelope.publicKey !== unfollowed) return
           if (envelope.message.index > stop) {
-            batch.push({
-              type: 'del',
-              key: entry.key
-            })
+            batch.push({ type: 'del', key: entry.key })
             if (mentionedIn(publicKeyHex, envelope)) {
               batch.push({
                 type: 'del',
@@ -313,11 +312,11 @@ prototype.append = function (envelope, callback) {
               })
             }
           }
-          db.batch(batch, done)
         })
-      }),
-      done
-    )
+      })
+      .once('end', function () {
+        db.batch(batch, done)
+      })
   }
 }
 
