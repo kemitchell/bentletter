@@ -50,10 +50,13 @@ Storage Layout:
 
 - MENTIONS/{Hex public key}/{ISO8601 date}@{Hex public key} -> JSON envelope
 
+- REPLIES/{Hex public key}@{LexInt index}/{Hex public key}@{LexInt index}
+
 */
 
 // Storage Key Prefixes
 
+var REPLIES = 'replies'
 var CONFLICTS = 'conflicts'
 var DIGESTS = 'digests'
 var FOLLOWERS = 'followers'
@@ -165,6 +168,17 @@ prototype.append = function (envelope, callback) {
                 type: 'put',
                 key: `${PUBLIC_KEYS}/${publicKeyHex}`,
                 value: new Date().toISOString()
+              })
+            }
+            if (body.type === 'post' && has(body, 'parent')) {
+              var parent = body.parent
+              batch.push({
+                type: 'put',
+                key: replyKey(
+                  parent.publicKey, parent.index,
+                  publicKeyHex, index
+                ),
+                value: ''
               })
             }
             runWaterfall([
@@ -633,6 +647,32 @@ prototype.createMentionsStream = function (publicKeyHex) {
   )
 }
 
+// Stream children of (replies to) a post.
+prototype.createRepliesStream = function (publicKeyHex, index) {
+  assert(typeof publicKeyHex === 'string')
+  assert(PUBLIC_KEY_RE.test(publicKeyHex))
+  assert(typeof index === 'number')
+  assert(Number.isSafeInteger(index))
+  assert(index >= 0)
+
+  var encodedIndex = encodeIndex(index)
+  return pump(
+    this._db.createReadStream({
+      gt: `${REPLIES}/${publicKeyHex}@${encodedIndex}/`,
+      lt: `${REPLIES}/${publicKeyHex}@${encodedIndex}/~`,
+      keys: true,
+      values: false
+    }),
+    through2.obj(function (key, _, done) {
+      var parsed = key.split('/').slice(1)[1].split('@')
+      done(null, {
+        publicKey: parsed[0],
+        index: decodeIndex(parsed[1])
+      })
+    })
+  )
+}
+
 // Reduction Interface
 
 // Read the reduction of a log.
@@ -722,6 +762,11 @@ function encodeIndex (index) {
   return lexint.pack(index, 'hex')
 }
 
+function decodeIndex (hex) {
+  assert(typeof hex === 'string')
+  return lexint.unpack(hex, 'hex')
+}
+
 function followKey (followed, following) {
   assert(typeof followed === 'string')
   assert(PUBLIC_KEY_RE.test(followed))
@@ -747,4 +792,23 @@ function mentionKey (recipient, date, sender, index) {
   assert(PUBLIC_KEY_RE.test(sender))
 
   return `${MENTIONS}/${recipient}/${date}@${sender}@${encodeIndex(index)}`
+}
+
+function replyKey (parentPublicKey, parentIndex, childPublicKey, childIndex) {
+  assert(typeof parentPublicKey === 'string')
+  assert(PUBLIC_KEY_RE.test(parentPublicKey))
+  assert(typeof parentIndex === 'number')
+  assert(Number.isSafeInteger(parentIndex))
+  assert(parentIndex >= 0)
+  assert(typeof childPublicKey === 'string')
+  assert(PUBLIC_KEY_RE.test(childPublicKey))
+  assert(typeof childIndex === 'number')
+  assert(Number.isSafeInteger(childIndex))
+  assert(childIndex >= 0)
+
+  return (
+    REPLIES +
+    `/${parentPublicKey}@${encodeIndex(parentIndex)}` +
+    `/${childPublicKey}@${encodeIndex(childIndex)}`
+  )
 }

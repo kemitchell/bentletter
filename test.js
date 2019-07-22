@@ -545,3 +545,63 @@ tape('timeline and mentions', function (test) {
     }
   )
 })
+
+tape('replies', function (test) {
+  var keyPair = makeKeyPair()
+  var publicKey = keyPair.publicKey.toString('hex')
+  var secretKey = keyPair.secretKey.toString('hex')
+  var messages = [
+    {
+      index: 0,
+      date: new Date('2019-01-01').toISOString(),
+      body: {
+        type: 'post',
+        content: ['parent']
+      }
+    },
+    {
+      index: 1,
+      date: new Date('2019-01-03').toISOString(),
+      body: {
+        type: 'post',
+        content: ['reply'],
+        parent: { publicKey, index: 0 }
+      }
+    }
+  ]
+  var envelopes = messages.map(function (message) {
+    var envelope = { publicKey, message }
+    sign({ envelope, secretKey })
+    return envelope
+  })
+  var storage = new Storage({ leveldown: encodingDown(memdown()) })
+  runSeries(
+    envelopes.map(function (envelope) {
+      return function (done) {
+        storage.append(envelope, done)
+      }
+    }),
+    function (error) {
+      test.ifError(error, 'no append error')
+      var replies = []
+      storage.createRepliesStream(publicKey, 0)
+        .on('data', function (envelope) {
+          replies.push(envelope)
+        })
+        .once('end', function () {
+          test.equal(replies.length, 1, 'one reply')
+          var reply = replies[0]
+          test.deepEqual(reply, { publicKey, index: 1 }, 'reply matches')
+          storage.read(
+            reply.publicKey, reply.index,
+            function (error, read) {
+              test.ifError(error, 'no read error')
+              test.deepEqual(read, envelopes[1], 'read')
+              storage.close()
+              test.end()
+            }
+          )
+        })
+    }
+  )
+})
