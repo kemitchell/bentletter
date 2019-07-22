@@ -33,7 +33,7 @@
   },
   "scripts": {
     "coverage": "nyc --reporter=lcov --reporter=text npm run test",
-    "test": "node test.js",
+    "test": "tape test/**.test.js",
     "lint": "standard"
   }
 }

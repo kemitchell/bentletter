@@ -1,22 +1,22 @@
 var AJV = require('ajv')
-var Storage = require('./storage')
+var Storage = require('../storage')
 var crypto = require('crypto')
 var deepEqual = require('deep-equal')
 var encodingDown = require('encoding-down')
 var glob = require('glob')
-var hash = require('./crypto/hash')
-var makeKeyPair = require('./crypto/make-key-pair')
+var hash = require('../crypto/hash')
+var makeKeyPair = require('../crypto/make-key-pair')
 var memdown = require('memdown')
 var path = require('path')
-var reduce = require('./reduce')
+var reduce = require('../reduce')
 var runSeries = require('run-series')
-var sign = require('./crypto/sign')
+var sign = require('../crypto/sign')
 var tape = require('tape')
-var verify = require('./crypto/verify')
+var verify = require('../crypto/verify')
 
 tape('schemas', function (test) {
   var ajv = new AJV()
-  glob('schemas/*.js', function (error, files) {
+  glob('../schemas/*.js', function (error, files) {
     test.ifError(error, 'no glob error')
     runSeries(files.map(function (file) {
       return function (done) {
@@ -47,7 +47,7 @@ tape('test announcement', function (test) {
   }
   sign({ envelope, secretKey })
   var ajv = new AJV()
-  var schema = require('./schemas/envelope')
+  var schema = require('../schemas/envelope')
   ajv.validate(schema, envelope, 'validate')
   test.equal(ajv.errors, null)
   test.equal(verify(envelope), true, 'verify')
