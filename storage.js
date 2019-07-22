@@ -288,7 +288,7 @@ prototype.append = function (envelope, callback) {
     if (!stopped) return done()
     var stop = reduction.following[unfollowed].stop
     var batch = []
-    db.createReadStream({
+    var stream = db.createReadStream({
       gt: `${TIMELINES}/${publicKeyHex}/`,
       lt: `${TIMELINES}/${publicKeyHex}/~`,
       keys: true,
@@ -296,12 +296,15 @@ prototype.append = function (envelope, callback) {
       reverse: true
     })
       .once('error', function (error) {
-        this.destroy()
+        stream.destroy()
         done(error)
       })
       .on('data', function (entry) {
         parseJSON(entry.value, function (error, envelope) {
-          if (error) return
+          if (error) {
+            stream.destroy()
+            return done(error)
+          }
           if (envelope.publicKey !== unfollowed) return
           if (envelope.message.index > stop) {
             batch.push({ type: 'del', key: entry.key })
@@ -311,12 +314,16 @@ prototype.append = function (envelope, callback) {
                 key: entry.key.replace(`${TIMELINES}/`, `${MENTIONS}/`)
               })
             }
+          } else {
+            stream.destroy()
+            finish()
           }
         })
       })
-      .once('end', function () {
-        db.batch(batch, done)
-      })
+      .once('end', finish)
+    function finish () {
+      db.batch(batch, done)
+    }
   }
 }
 
