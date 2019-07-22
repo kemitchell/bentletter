@@ -371,7 +371,8 @@ tape('storage conflict', function (test) {
   })
 })
 
-tape('timeline', function (test) {
+tape('timeline and mentions', function (test) {
+  var charlieKeyPair = makeKeyPair()
   var anna = {
     keyPair: makeKeyPair(),
     messages: [
@@ -383,7 +384,13 @@ tape('timeline', function (test) {
       {
         index: 1,
         date: new Date('2019-01-03').toISOString(),
-        body: { type: 'post', content: ['second post'] }
+        body: {
+          type: 'post',
+          content: [
+            'Anna\'s second post',
+            { publicKey: charlieKeyPair.publicKey.toString('hex') }
+          ]
+        }
       },
       {
         index: 2,
@@ -403,7 +410,13 @@ tape('timeline', function (test) {
       {
         index: 1,
         date: new Date('2019-01-04').toISOString(),
-        body: { type: 'post', content: ['second post'] }
+        body: {
+          type: 'post',
+          content: [
+            'Bob\'s second post',
+            { publicKey: charlieKeyPair.publicKey.toString('hex') }
+          ]
+        }
       },
       {
         index: 2,
@@ -413,7 +426,7 @@ tape('timeline', function (test) {
     ]
   }
   var charlie = {
-    keyPair: makeKeyPair(),
+    keyPair: charlieKeyPair,
     messages: [
       {
         index: 0,
@@ -464,7 +477,9 @@ tape('timeline', function (test) {
       return envelope
     })
   })
-
+  test.comment('anna: ' + anna.publicKey.slice(0, 4))
+  test.comment('bob: ' + bob.publicKey.slice(0, 4))
+  test.comment('charlie: ' + charlie.publicKey.slice(0, 4))
   var storage = new Storage({ leveldown: encodingDown(memdown()) })
   var allEnvelopes = players.reduce(function (envelopes, player) {
     return envelopes.concat(player.envelopes)
@@ -476,32 +491,55 @@ tape('timeline', function (test) {
       }
     }),
     function () {
-      var timeline = []
-      storage.createTimelineStream(charlie.publicKey)
-        .on('data', function (envelope) {
-          timeline.push(envelope)
-        })
-        .once('end', function () {
-          var expecting = []
-            .concat(anna.envelopes.slice(0, 1))
-            .concat(bob.envelopes.slice(0, 2))
-          expecting.forEach(function (expected) {
-            test.assert(
-              timeline.some(function (timelineEnvelope) {
-                return deepEqual(expected, timelineEnvelope)
+      runSeries([
+        function testTimeline (done) {
+          var timeline = []
+          storage.createTimelineStream(charlie.publicKey)
+            .on('data', function (envelope) {
+              timeline.push(envelope)
+            })
+            .once('end', function () {
+              var expecting = []
+                .concat(anna.envelopes.slice(0, 1))
+                .concat(bob.envelopes.slice(0, 2))
+              expecting.forEach(function (expected) {
+                test.assert(
+                  timeline.some(function (timelineEnvelope) {
+                    return deepEqual(expected, timelineEnvelope)
+                  })
+                )
               })
-            )
-          })
-          test.equal(timeline.length, expecting.length, 'length')
-          var sortedByDate = timeline.sort(function (a, b) {
-            var aDate = new Date(a.message.date)
-            var bDate = new Date(b.message.date)
-            return aDate - bDate
-          })
-          test.deepEqual(timeline, sortedByDate)
-          storage.close()
-          test.end()
-        })
+              test.equal(timeline.length, expecting.length, 'length')
+              var sortedByDate = timeline.sort(function (a, b) {
+                var aDate = new Date(a.message.date)
+                var bDate = new Date(b.message.date)
+                return aDate - bDate
+              })
+              test.deepEqual(timeline, sortedByDate)
+              done()
+            })
+        },
+        function testMentions (done) {
+          var mentions = []
+          storage.createMentionsStream(charlie.publicKey)
+            .on('data', function (envelope) {
+              mentions.push(envelope)
+            })
+            .once('end', function () {
+              test.deepEqual(mentions, [bob.envelopes[1]], 'mentions')
+              var sortedByDate = mentions.sort(function (a, b) {
+                var aDate = new Date(a.message.date)
+                var bDate = new Date(b.message.date)
+                return aDate - bDate
+              })
+              test.deepEqual(mentions, sortedByDate)
+              done()
+            })
+        }
+      ], function () {
+        storage.close()
+        test.end()
+      })
     }
   )
 })

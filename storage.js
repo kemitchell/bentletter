@@ -256,11 +256,7 @@ prototype.append = function (envelope, callback) {
           value
         })
         // If mentioned, copy to mentions.
-        var mentions = mentionsInEnvelope(envelope)
-        var mentioned = mentions.some(function (mention) {
-          return mention.publicKey === publicKeyHex
-        })
-        if (mentioned) {
+        if (mentionedIn(publicKeyHex, envelope)) {
           batch.push({
             type: 'put',
             key: mentionKey.apply(null, keyArguments),
@@ -287,31 +283,43 @@ prototype.append = function (envelope, callback) {
         gt: `${TIMELINES}/${publicKeyHex}/`,
         lt: `${TIMELINES}/${publicKeyHex}/~`,
         keys: true,
-        values: false,
+        values: true,
         reverse: true
       }),
-      flushWriteStream.obj(function (key, _, done) {
-        var parsed = key.split('/')[2].split('@')
-        var publicKeyHex = parsed[1]
-        var index = decodeIndex(parsed[2])
-        if (publicKeyHex !== unfollowed) return done()
-        var batch = []
-        if (index > stop) batch.push({ type: 'del', key })
-        var mentions = mentionsInEnvelope(envelope)
-        var mentioned = mentions.some(function (mention) {
-          return mention.publicKey === publicKeyHex
+      flushWriteStream.obj(function (entry, _, done) {
+        parseJSON(entry.value, function (error, envelope) {
+          if (error) return done(error)
+          if (envelope.publicKey !== unfollowed) return done()
+          var index = envelope.message.index
+          var batch = []
+          if (index > stop) {
+            batch.push({
+              type: 'del',
+              key: entry.key
+            })
+            if (mentionedIn(publicKeyHex, envelope)) {
+              batch.push({
+                type: 'del',
+                key: entry.key.replace(`${TIMELINES}/`, `${MENTIONS}/`)
+              })
+            }
+          }
+          db.batch(batch, done)
         })
-        if (mentioned) {
-          batch.push({
-            type: 'del',
-            key: key.replace(`${TIMELINES}/`, `${MENTIONS}/`)
-          })
-        }
-        db.batch(batch, done)
       }),
       done
     )
   }
+}
+
+function mentionedIn (publicKeyHex, envelope) {
+  assert(typeof publicKeyHex === 'string')
+  assert(PUBLIC_KEY_RE.test(publicKeyHex))
+  assert(typeof envelope === 'object')
+  return mentionsInEnvelope(envelope)
+    .some(function (mention) {
+      return mention.publicKey === publicKeyHex
+    })
 }
 
 prototype._batchForReduction = function (
@@ -322,11 +330,30 @@ prototype._batchForReduction = function (
   assert(typeof callback === 'function')
 
   var message = envelope.message
-  var type = message.body.type
   var self = this
   var batch = []
   var mentions = mentionsInEnvelope(envelope)
   var sender = envelope.publicKey
+
+  // Append operations for follow and unfollow.
+  if (has(reduction, 'following')) {
+    var following = reduction.following
+    mentions.forEach(function (mention) {
+      if (
+        mention.type === 'follow' ||
+        mention.type === 'unfollow'
+      ) {
+        Object.keys(following).forEach(function (followed) {
+          batch.push({
+            type: 'put',
+            key: followKey(followed, envelope.publicKey),
+            value: JSON.stringify(following[followed])
+          })
+        })
+      }
+    })
+  }
+
   runParallel([
     function appendToTimelines (done) {
       pump(
@@ -357,22 +384,12 @@ prototype._batchForReduction = function (
       runParallel(
         mentions.map(function (mention) {
           return function (done) {
-            var type = mention.type
             var recipient = mention.publicKey
-            if (type === 'follow' || type === 'unfollow') {
-              var following = reduction.following || {}
-              Object.keys(following).forEach(function (followed) {
-                batch.push({
-                  type: 'put',
-                  key: followKey(followed, envelope.publicKey),
-                  value: JSON.stringify(following[followed])
-                })
-              })
-              return done()
-            }
             self.reduction(recipient, function (error, reduction) {
               if (error) return done(error)
+              if (!reduction) return done()
               var following = (
+                has(reduction, 'following') &&
                 has(reduction.following, sender) &&
                 (
                   !has(reduction.following[sender], 'stop') ||
@@ -688,11 +705,6 @@ function reductionKey (publicKeyHex) {
   assert(PUBLIC_KEY_RE.test(publicKeyHex))
 
   return `${REDUCTIONS}/${publicKeyHex}`
-}
-
-function decodeIndex (hex) {
-  assert(typeof hex === 'string')
-  return lexint.unpack(hex, 'hex')
 }
 
 function encodeIndex (index) {

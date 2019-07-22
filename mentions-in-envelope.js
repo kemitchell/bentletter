@@ -8,13 +8,13 @@ module.exports = function (envelope) {
   var body = message.body
   if (has(body, 'content')) {
     body.content.forEach(function (element) {
-      if (!has(element, 'content')) return
-      element.content.forEach(function (element) {
+      if (typeof element !== 'object') return
+      if (has(element, 'publicKey')) {
         returned.push({
           type: 'content',
           publicKey: element.publicKey
         })
-      })
+      }
     })
   }
   var type = body.type
