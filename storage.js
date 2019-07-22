@@ -278,6 +278,7 @@ prototype.append = function (envelope, callback) {
     )
     if (!stopped) return done()
     var stop = reduction.following[unfollowed].stop
+    // TODO: Use .on('data') on this stream and .destroy() > stop.
     pump(
       db.createReadStream({
         gt: `${TIMELINES}/${publicKeyHex}/`,
