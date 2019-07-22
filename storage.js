@@ -34,7 +34,7 @@ function Storage (options) {
 
 Storage Layout:
 
-- CONFLICTS/{Hex publicKey}/{Hex digest}:{Hex digest} -> Date seen
+- CONFLICTS/{Hex publicKey}/{Hex digest}@{Hex digest} -> Date seen
 
 - DIGESTS/{Hex digest} -> JSON [ publicKeyHex, index ]
 
@@ -46,9 +46,9 @@ Storage Layout:
 
 - FOLLOWERS/{Hex public key}/{Hex public key} -> optional Number stop
 
-- TIMELINES/{Hex public key}/{ISO8601 date}:{Hex public key} -> JSON envelope
+- TIMELINES/{Hex public key}/{ISO8601 date}@{Hex public key} -> JSON envelope
 
-- MENTIONS/{Hex public key}/{ISO8601 date}:{Hex public key} -> JSON envelope
+- MENTIONS/{Hex public key}/{ISO8601 date}@{Hex public key} -> JSON envelope
 
 */
 
@@ -205,7 +205,7 @@ prototype.append = function (envelope, callback) {
               if (existingDigestHex !== digestHex) {
                 var key = (
                   `${CONFLICTS}/${publicKeyHex}/` +
-                  `${existingDigestHex}:${digestHex}`
+                  `${existingDigestHex}@${digestHex}`
                 )
                 var value = JSON.stringify({
                   existing: existing,
@@ -533,7 +533,7 @@ prototype.createConflictsStream = function (publicKeyHex) {
     through2.obj(function (entry, _, done) {
       parseJSON(entry.value, function (error, parsed) {
         if (error) return done(error)
-        var digests = entry.key.split('/')[2].split(':')
+        var digests = entry.key.split('/')[2].split('@')
         parsed.existingDigest = digests[0]
         parsed.conflictingDigest = digests[1]
         done(null, parsed)
