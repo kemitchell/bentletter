@@ -338,7 +338,7 @@ tape('storage conflict', function (test) {
   })
   var digests = envelopes.map(hash).map(function (digest) {
     return digest.toString('hex')
-  }).sort()
+  })
   runSeries([
     function appendFirst (done) {
       storage.append(envelopes[0], function (error) {
@@ -360,8 +360,8 @@ tape('storage conflict', function (test) {
         })
         .on('end', function () {
           test.equal(conflicts.length, 1, 'one conflict')
-          test.equal(conflicts[0][0], digests[0], 'first digest')
-          test.equal(conflicts[0][1], digests[1], 'second digest')
+          test.equal(conflicts[0].existingDigest, digests[0], 'first digest')
+          test.equal(conflicts[0].conflictingDigest, digests[1], 'second digest')
           done()
         })
     }

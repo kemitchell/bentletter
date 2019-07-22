@@ -203,17 +203,21 @@ prototype.append = function (envelope, callback) {
               if (error) return done(error)
               var existingDigestHex = hash(existing).toString('hex')
               if (existingDigestHex !== digestHex) {
-                return self._conflict(
-                  publicKeyHex, existingDigestHex, digestHex,
-                  function (error) {
-                    /* istanbul ignore if */
-                    if (error) return done(error)
-                    var conflictError = new Error('conflict')
-                    conflictError.firstDigestHex = existingDigestHex
-                    conflictError.secondDigestHex = digestHex
-                    done(conflictError)
-                  }
+                var key = (
+                  `${CONFLICTS}/${publicKeyHex}/` +
+                  `${existingDigestHex}:${digestHex}`
                 )
+                var value = JSON.stringify({
+                  existing: existing,
+                  conflicting: envelope
+                })
+                return db.put(key, value, function (error) {
+                  if (error) return done(error)
+                  var conflictError = new Error('conflict')
+                  conflictError.firstDigestHex = existingDigestHex
+                  conflictError.secondDigestHex = digestHex
+                  done(conflictError)
+                })
               }
               var existsError = new Error('exists')
               existsError.exists = true
@@ -421,25 +425,6 @@ prototype._batchForReduction = function (
   })
 }
 
-prototype._conflict = function (
-  publicKeyHex, firstDigestHex, secondDigestHex, callback
-) {
-  assert(typeof publicKeyHex === 'string')
-  assert(PUBLIC_KEY_RE.test(publicKeyHex))
-  assert(typeof firstDigestHex === 'string')
-  assert(DIGEST_RE.test(firstDigestHex))
-  assert(typeof secondDigestHex === 'string')
-  assert(DIGEST_RE.test(secondDigestHex))
-  assert(typeof callback === 'function')
-
-  var sorted = [firstDigestHex, secondDigestHex].sort()
-  this._db.put(
-    `${CONFLICTS}/${publicKeyHex}/${sorted[0]}:${sorted[1]}`,
-    new Date().toISOString(),
-    callback
-  )
-}
-
 prototype._updateReduction = function (publicKeyHex, reduction, callback) {
   assert(typeof publicKeyHex === 'string')
   assert(PUBLIC_KEY_RE.test(publicKeyHex))
@@ -543,10 +528,16 @@ prototype.createConflictsStream = function (publicKeyHex) {
       gt: `${CONFLICTS}/${publicKeyHex}/`,
       lt: `${CONFLICTS}/${publicKeyHex}/~`,
       keys: true,
-      values: false
+      values: true
     }),
-    through2.obj(function (key, _, done) {
-      done(null, key.split('/')[2].split(':'))
+    through2.obj(function (entry, _, done) {
+      parseJSON(entry.value, function (error, parsed) {
+        if (error) return done(error)
+        var digests = entry.key.split('/')[2].split(':')
+        parsed.existingDigest = digests[0]
+        parsed.conflictingDigest = digests[1]
+        done(null, parsed)
+      })
     })
   )
 }
