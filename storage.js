@@ -151,42 +151,13 @@ prototype.append = function (envelope, callback) {
           }
 
           function writeEntryAndUpdateReduction (done) {
-            var batch = [
-              {
-                type: 'put',
-                key: digestKey(digestHex),
-                value: JSON.stringify([publicKeyHex, index])
-              },
-              {
-                type: 'put',
-                key: entryKey(publicKeyHex, index),
-                value: JSON.stringify(envelope)
-              }
-            ]
-            if (index === 0) {
-              batch.push({
-                type: 'put',
-                key: `${PUBLIC_KEYS}/${publicKeyHex}`,
-                value: new Date().toISOString()
-              })
-            }
-            if (body.type === 'post' && has(body, 'parent')) {
-              var parent = body.parent
-              batch.push({
-                type: 'put',
-                key: replyKey(
-                  parent.publicKey, parent.index,
-                  publicKeyHex, index
-                ),
-                value: ''
-              })
-            }
+            var batch = synchronousIndexOperations(envelope, digestHex)
             runWaterfall([
               function readCurrentReduction (done) {
                 if (index === 0) return done(null, {})
                 self.reduction(publicKeyHex, done)
               },
-              function computeUpdatedReduction (currentReduction, done) {
+              function updatedReduction (currentReduction, done) {
                 reduce(currentReduction, envelope, function (error) {
                   if (error) return done(error)
                   done(null, currentReduction)
@@ -344,6 +315,65 @@ prototype.append = function (envelope, callback) {
       db.batch(batch, done)
     }
   }
+}
+
+var sychronousIndexers = [
+  function digest (envelope, digestHex) {
+    return [
+      {
+        type: 'put',
+        key: digestKey(digestHex),
+        value: JSON.stringify([
+          envelope.publicKey, envelope.message.index
+        ])
+      }
+    ]
+  },
+
+  function entry (envelope) {
+    return [
+      {
+        type: 'put',
+        key: entryKey(envelope.publicKey, envelope.message.index),
+        value: JSON.stringify(envelope)
+      }
+    ]
+  },
+
+  function publicKey (envelope) {
+    if (envelope.message.index) {
+      return [
+        {
+          type: 'put',
+          key: `${PUBLIC_KEYS}/${envelope.publicKey}`,
+          value: new Date().toISOString()
+        }
+      ]
+    }
+  },
+
+  function reply (envelope) {
+    var body = envelope.message.body
+    if (body.type === 'post' && has(body, 'parent')) {
+      var parent = body.parent
+      return [
+        {
+          type: 'put',
+          key: replyKey(
+            parent.publicKey, parent.index,
+            envelope.publicKey, envelope.message.index
+          ),
+          value: ''
+        }
+      ]
+    }
+  }
+]
+
+function synchronousIndexOperations (envelope, digestHex) {
+  return sychronousIndexers.reduce(function (batch, indexer) {
+    return batch.concat(indexer(envelope, digestHex) || [])
+  }, [])
 }
 
 function mentionedIn (publicKeyHex, envelope) {
