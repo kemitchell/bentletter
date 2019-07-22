@@ -87,113 +87,115 @@ prototype.append = function (envelope, callback) {
   var reduction
 
   runSeries([
-    writeDigest,
-    appendToLog,
-    copyNewlyFollowed,
-    deleteNewlyUnfollowed
+    saveAndIndex,
+    copyNewlyFollowedEnvelopes,
+    deleteNewlyUnfollowedEnvelopes
   ], callback)
 
-  function writeDigest (done) {
-    db.put(
-      digestKey(digestHex),
-      JSON.stringify([publicKeyHex, index]),
-      done
-    )
-  }
-
-  function appendToLog (done) {
+  function saveAndIndex (done) {
     lock(publicKeyHex, function (unlock) {
       done = unlock(done)
       self.head(publicKeyHex, function (error, head) {
         /* istanbul ignore if */
         if (error) return done(error)
-        if (index === head + 1) {
+        if (index === head + 1) handleExpectedEntry()
+        else if (index <= head) handleOldEntry()
+        else handleFutureEntry()
+
+        function handleExpectedEntry () {
           runSeries([
-            function checkAgainstPrior (done) {
-              if (index === 0) return done()
-              var priorIndex = index - 1
-              self.read(
-                publicKeyHex, priorIndex,
-                function (error, prior) {
+            checkAgainstPriorEntry,
+            writeEntryAndUpdateReduction
+          ], done)
+
+          function checkAgainstPriorEntry (done) {
+            if (index === 0) return done()
+            var priorIndex = index - 1
+            self.read(
+              publicKeyHex, priorIndex,
+              function (error, prior) {
+                /* istanbul ignore if */
+                if (error) return done(error)
+                var nextDate = new Date(envelope.message.date)
+                var priorDate = new Date(prior.message.date)
+                if (priorDate >= nextDate) {
+                  var dateError = new Error('date')
+                  var priorDigestBuffer = hash(prior)
+                  dateError.priorIndex = head
+                  dateError.priorDigestBuffer = priorDigestBuffer
+                  dateError.priorDate = priorDate
+                  dateError.nextIndex = index
+                  dateError.nextDigestBuffer = digestBuffer
+                  dateError.nextDate = nextDate
+                  return done(dateError)
+                } else {
+                  var now = new Date()
+                  var difference = now.getTime() - nextDate.getTime()
+                  if (difference > self._maxClockSkew) {
+                    var clockError = new Error('future')
+                    clockError.date = nextDate
+                    clockError.now = now
+                    clockError.maxClockSkew = self._maxClockSkew
+                    return done(clockError)
+                  }
+                  done()
+                }
+              }
+            )
+          }
+
+          function writeEntryAndUpdateReduction (done) {
+            var batch = [
+              {
+                type: 'put',
+                key: digestKey(digestHex),
+                value: JSON.stringify([publicKeyHex, index])
+              },
+              {
+                type: 'put',
+                key: entryKey(publicKeyHex, index),
+                value: JSON.stringify(envelope)
+              }
+            ]
+            if (index === 0) {
+              batch.push({
+                type: 'put',
+                key: `${PUBLIC_KEYS}/${publicKeyHex}`,
+                value: new Date().toISOString()
+              })
+            }
+            runWaterfall([
+              function readCurrent (done) {
+                if (index === 0) return done(null, {})
+                self.reduction(publicKeyHex, done)
+              },
+              function update (updatedReduction, done) {
+                reduction = updatedReduction
+                reduce(reduction, envelope, function (error) {
                   /* istanbul ignore if */
                   if (error) return done(error)
-                  var nextDate = new Date(envelope.message.date)
-                  var priorDate = new Date(prior.message.date)
-                  if (priorDate >= nextDate) {
-                    var dateError = new Error('date')
-                    var priorDigestBuffer = hash(prior)
-                    dateError.priorIndex = head
-                    dateError.priorDigestBuffer = priorDigestBuffer
-                    dateError.priorDate = priorDate
-                    dateError.nextIndex = index
-                    dateError.nextDigestBuffer = digestBuffer
-                    dateError.nextDate = nextDate
-                    return done(dateError)
-                  } else {
-                    var now = new Date()
-                    var difference = now.getTime() - nextDate.getTime()
-                    if (difference > self._maxClockSkew) {
-                      var clockError = new Error('future')
-                      clockError.date = nextDate
-                      clockError.now = now
-                      clockError.maxClockSkew = self._maxClockSkew
-                      return done(clockError)
-                    }
-                    done()
-                  }
-                }
-              )
-            },
-            function writeEntry (done) {
-              var batch = [
-                {
-                  type: 'put',
-                  key: entryKey(publicKeyHex, index),
-                  value: JSON.stringify(envelope)
-                }
-              ]
-              if (index === 0) {
-                batch.push({
-                  type: 'put',
-                  key: `${PUBLIC_KEYS}/${publicKeyHex}`,
-                  value: new Date().toISOString()
-                })
-              }
-              db.batch(batch, done)
-            },
-            function overwriteReduction (done) {
-              runWaterfall([
-                function readCurrent (done) {
-                  if (index === 0) return done(null, {})
-                  self.reduction(publicKeyHex, done)
-                },
-                function overwrite (updatedReduction, done) {
-                  reduction = updatedReduction
-                  reduce(
+                  self._batchForReduction(
                     reduction, envelope,
-                    function (error) {
-                      /* istanbul ignore if */
+                    function (error, forReduction) {
                       if (error) return done(error)
-                      self._batchForReduction(
-                        reduction,
-                        envelope,
-                        function (error, batch) {
-                          if (error) return done(error)
-                          batch.push({
-                            type: 'put',
-                            key: reductionKey(publicKeyHex),
-                            value: JSON.stringify(reduction)
-                          })
-                          db.batch(batch, done)
-                        }
-                      )
+                      forReduction.forEach(function (operation) {
+                        batch.push(operation)
+                      })
+                      batch.push({
+                        type: 'put',
+                        key: reductionKey(publicKeyHex),
+                        value: JSON.stringify(reduction)
+                      })
+                      db.batch(batch, done)
                     }
                   )
-                }
-              ], done)
-            }
-          ], done)
-        } else if (index <= head) {
+                })
+              }
+            ], done)
+          }
+        }
+
+        function handleOldEntry () {
           self.read(
             publicKeyHex, index,
             function (error, existing) {
@@ -202,9 +204,7 @@ prototype.append = function (envelope, callback) {
               var existingDigestHex = hash(existing).toString('hex')
               if (existingDigestHex !== digestHex) {
                 return self._conflict(
-                  publicKeyHex,
-                  existingDigestHex,
-                  digestHex,
+                  publicKeyHex, existingDigestHex, digestHex,
                   function (error) {
                     /* istanbul ignore if */
                     if (error) return done(error)
@@ -220,7 +220,9 @@ prototype.append = function (envelope, callback) {
               return done(existsError)
             }
           )
-        } else {
+        }
+
+        function handleFutureEntry () {
           var gapError = new Error('gap')
           gapError.head = head
           gapError.index = index
@@ -230,7 +232,7 @@ prototype.append = function (envelope, callback) {
     })
   }
 
-  function copyNewlyFollowed (done) {
+  function copyNewlyFollowedEnvelopes (done) {
     if (envelope.message.body.type !== 'follow') return done()
     var followed = envelope.message.body.publicKey
     var stopped = (
@@ -269,7 +271,7 @@ prototype.append = function (envelope, callback) {
     )
   }
 
-  function deleteNewlyUnfollowed (done) {
+  function deleteNewlyUnfollowedEnvelopes (done) {
     if (envelope.message.body.type !== 'unfollow') return done()
     var unfollowed = envelope.message.body.publicKey
     var stopped = (
@@ -438,7 +440,7 @@ prototype._conflict = function (
   )
 }
 
-prototype._overwriteReduction = function (publicKeyHex, reduction, callback) {
+prototype._updateReduction = function (publicKeyHex, reduction, callback) {
   assert(typeof publicKeyHex === 'string')
   assert(PUBLIC_KEY_RE.test(publicKeyHex))
   assert(typeof reduction === 'object')
@@ -661,7 +663,7 @@ prototype.rereduce = function (publicKeyHex, callback) {
       function (error) {
         /* istanbul ignore if */
         if (error) return callback(error)
-        self._overwriteReduction(
+        self._updateReduction(
           publicKeyHex, reduction, callback
         )
       }
