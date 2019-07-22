@@ -168,33 +168,38 @@ prototype.append = function (envelope, callback) {
               })
             }
             runWaterfall([
-              function readCurrent (done) {
+              function readCurrentReduction (done) {
                 if (index === 0) return done(null, {})
                 self.reduction(publicKeyHex, done)
               },
-              function update (updatedReduction, done) {
-                reduction = updatedReduction
-                reduce(reduction, envelope, function (error) {
-                  /* istanbul ignore if */
+              function computeUpdatedReduction (currentReduction, done) {
+                reduce(currentReduction, envelope, function (error) {
                   if (error) return done(error)
-                  self._batchForReduction(
-                    reduction, envelope,
-                    function (error, forReduction) {
-                      if (error) return done(error)
-                      forReduction.forEach(function (operation) {
-                        batch.push(operation)
-                      })
-                      batch.push({
-                        type: 'put',
-                        key: reductionKey(publicKeyHex),
-                        value: JSON.stringify(reduction)
-                      })
-                      db.batch(batch, done)
-                    }
-                  )
+                  done(null, currentReduction)
                 })
+              },
+              function writeUpdatedReduction (updatedReduction, done) {
+                reduction = updatedReduction
+                self._batchForReduction(
+                  reduction, envelope,
+                  function (error, forReduction) {
+                    if (error) return done(error)
+                    forReduction.forEach(function (operation) {
+                      batch.push(operation)
+                    })
+                    batch.push({
+                      type: 'put',
+                      key: reductionKey(publicKeyHex),
+                      value: JSON.stringify(reduction)
+                    })
+                    done(null, batch)
+                  }
+                )
               }
-            ], done)
+            ], function (error, batch) {
+              if (error) return done(error)
+              db.batch(batch, done)
+            })
           }
         }
 
