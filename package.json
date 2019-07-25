@@ -6,6 +6,7 @@
     "busboy": "^0.3.1",
     "cookie": "^0.4.0",
     "encoding-down": "^6.1.0",
+    "escape-html": "^1.0.3",
     "fast-json-stable-stringify": "^2.0.0",
     "flush-write-stream": "^2.0.0",
     "from2": "^2.3.0",
