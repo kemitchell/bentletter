@@ -1,4 +1,5 @@
-module.exports = function (request, response) {
+module.exports = function (request, response, error) {
+  var errorMessage = error ? `<p class=error>${error}</p>` : ''
   response.setHeader('Content-Type', 'text/html')
   response.end(`
 <!doctype html>
@@ -14,6 +15,26 @@ module.exports = function (request, response) {
       <h1>bentletter</h1>
     </header>
     <main role=main>
+      <form action=/join method=post>
+        ${errorMessage}
+        <p>
+          <label for=token>Token</label>
+          <input name=token type=text>
+        </p>
+        <p>
+          <label for=email>E-Mail</label>
+          <input name=email type=email>
+        </p>
+        <p>
+          <label for=password>Password</label>
+          <input name=password type=password>
+        </p>
+        <p>
+          <label for=repeat>Repeat Password</label>
+          <input name=repeat type=password>
+        </p>
+        <button type=submit>Join</button>
+      </form>
     </main>
     <footer role=contentinfo>
     </footer>
