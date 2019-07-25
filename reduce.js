@@ -57,6 +57,8 @@ module.exports = function (reduction, envelope, callback) {
     return callback()
   }
 
+  if (type === 'avatar') reduction.avatar = body.uri
+
   return callback()
 }
 

@@ -45,6 +45,16 @@ tape('reduce unfollow without follow', function (test) {
   })
 })
 
+tape('reduce avatar', function (test) {
+  var uri = 'http://example.com/avatar.jpg'
+  testReduction(test, [
+    { type: 'avatar', uri }
+  ], function (test, result) {
+    test.deepEqual(result.avatar, uri, 'saves')
+    test.end()
+  })
+})
+
 tape('reduce with date continuity error', function (test) {
   var keyPair = makeKeyPair()
   var secretKey = keyPair.secretKey.toString('hex')
