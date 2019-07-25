@@ -7,6 +7,6 @@ module.exports = function (request, response) {
   request.query = parsed.query
   var route = routes.get(parsed.pathname)
   request.params = route.params
-  if (route.handler) route.handler(request, response)
-  else notFound(request, response)
+  if (route.handler) return route.handler(request, response)
+  notFound(request, response)
 }
