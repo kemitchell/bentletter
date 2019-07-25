@@ -1,3 +1,5 @@
+var passwordCriteria = require('./partials/password-criteria')
+
 module.exports = function (request, response, error) {
   var errorMessage = error ? `<p class=error>${error}</p>` : ''
   response.setHeader('Content-Type', 'text/html')
@@ -33,6 +35,7 @@ module.exports = function (request, response, error) {
           <label for=repeat>Repeat Password</label>
           <input name=repeat type=password>
         </p>
+        ${passwordCriteria()}
         <button type=submit>Join</button>
       </form>
     </main>

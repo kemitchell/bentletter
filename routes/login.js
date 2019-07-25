@@ -2,7 +2,7 @@ var Busboy = require('busboy')
 var clearCookie = require('./clear-cookie')
 var footer = require('./partials/footer')
 var header = require('./partials/header')
-var passwordPolicy = require('./password-policy')
+var passwordHashing = require('./password-policy')
 var random = require('../crypto/random')
 var runSeries = require('run-series')
 var securePassword = require('secure-password')
@@ -94,7 +94,7 @@ function post (request, response) {
       }
       var passwordHash = Buffer.from(account.passwordHash, 'hex')
       var passwordBuffer = Buffer.from(password, 'utf8')
-      passwordPolicy.verify(
+      passwordHashing.verify(
         passwordBuffer, passwordHash,
         function (error, result) {
           if (error) return done(error)
@@ -109,7 +109,7 @@ function post (request, response) {
               invalid.statusCode = 403
               return done(invalid)
             case securePassword.VALID_NEEDS_REHASH:
-              return passwordPolicy.hash(passwordBuffer, function (error, newHash) {
+              return passwordHashing.hash(passwordBuffer, function (error, newHash) {
                 if (error) return done(error)
                 account.passwordHash = newHash.toString('hex')
                 request.storage.writeAccount(

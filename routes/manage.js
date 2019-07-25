@@ -1,9 +1,11 @@
 var Busboy = require('busboy')
 var authenticate = require('./authenticate')
 var footer = require('./partials/footer')
+var found = require('./found')
 var header = require('./partials/header')
 var internalError = require('./internal-error')
-var passwordPolicy = require('./password-policy')
+var passwordHashing = require('./password-policy')
+var passwords = require('../passwords')
 var random = require('../crypto/random')
 var runSeries = require('run-series')
 var seeOther = require('./see-other')
@@ -107,6 +109,13 @@ function postManagerPassword (request, response) {
         'Passwords did not match.'
       )
     }
+    if (!passwords.validate(password)) {
+      response.statusCode = 400
+      return sendInitializeForm(
+        request, response,
+        'Invalid password.'
+      )
+    }
 
     var passwordHash
     runSeries([
@@ -119,7 +128,7 @@ function postManagerPassword (request, response) {
 
     function hashPassword (done) {
       var passwordBuffer = Buffer.from(password)
-      passwordPolicy.hash(passwordBuffer, function (error, hashBuffer) {
+      passwordHashing.hash(passwordBuffer, function (error, hashBuffer) {
         if (error) return done(error)
         passwordHash = hashBuffer.toString('hex')
         done()

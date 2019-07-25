@@ -6,7 +6,8 @@ var homePage = require('./home-page')
 var internalError = require('./internal-error')
 var makeKeyPair = require('../crypto/make-key-pair')
 var methodNotAllowed = require('./method-not-allowed')
-var passwordPolicy = require('./password-policy')
+var passwordHashing = require('./password-policy')
+var passwords = require('../passwords')
 var runSeries = require('run-series')
 var seeOther = require('./see-other')
 
@@ -61,9 +62,13 @@ module.exports = function (request, response) {
       error.handler = homePage
       return done(error)
     }
-    // TODO: Password criteria.
     if (password !== repeat) {
       error = new Error('Passwords did not match.')
+      error.handler = homePage
+      return done(error)
+    }
+    if (!passwords.validate(password)) {
+      error = new Error('Invalid password.')
       error.handler = homePage
       return done(error)
     }
@@ -93,7 +98,7 @@ module.exports = function (request, response) {
 
   function createAccount (done) {
     var passwordBuffer = Buffer.from(password)
-    passwordPolicy.hash(passwordBuffer, function (error, passwordHash) {
+    passwordHashing.hash(passwordBuffer, function (error, passwordHash) {
       if (error) return done(error)
       var keyPair = makeKeyPair()
       var record = {
