@@ -145,8 +145,8 @@ function post (request, response) {
 
   function redirect (done) {
     var location
-    if (request.query.destination === '/admin') location = '/admin'
-    else if (email === 'admin') location = '/admin'
+    if (request.query.destination === '/manage') location = '/manage'
+    else if (email === 'manager') location = '/manage'
     else location = '/timeline'
     seeOther(request, response, location)
     done()

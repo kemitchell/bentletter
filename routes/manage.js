@@ -21,20 +21,20 @@ function get (request, response) {
     if (error) return internalError(error)
     // Client is logged in.
     if (session) {
-      // Client is logged in, but not as admin.
-      if (session.email !== 'admin') {
+      // Client is logged in, but not as manager.
+      if (session.email !== 'manager') {
         return seeOther(request, response, '/')
       }
-      // Client is logged in as admin.
-      return sendAdminPanel(request, response)
+      // Client is logged in as manager.
+      return sendManagerPanel(request, response)
     }
     // Client is not logged in.
     if (!session) {
-      request.storage.account('admin', function (error, record) {
+      request.storage.account('manager', function (error, record) {
         if (error) return internalError(error)
-        // No admin user yet.
+        // No manager user yet.
         if (!record) return sendInitializeForm(request, response)
-        seeOther(request, response, '/login?destination=/admin')
+        seeOther(request, response, '/login?destination=/manage')
       })
     }
   })
@@ -48,7 +48,7 @@ function post (request, response) {
       return response.end()
     }
     if (session) {
-      if (session.email !== 'admin') {
+      if (session.email !== 'manager') {
         response.statusCode = 403
         return response.end()
       }
@@ -56,17 +56,17 @@ function post (request, response) {
     }
     // Client is not logged in.
     if (!session) {
-      request.storage.account('admin', function (error, record) {
+      request.storage.account('manager', function (error, record) {
         if (error) return internalError(error)
-        // No admin user yet.
-        if (!record) return postAdminPassword(request, response)
-        found(request, response, '/login?destination=/admin')
+        // No manager user yet.
+        if (!record) return postManagerPassword(request, response)
+        found(request, response, '/login?destination=/manage')
       })
     }
   })
 }
 
-function postAdminPassword (request, response) {
+function postManagerPassword (request, response) {
   var action, password, repeat
   runSeries([
     readPostBody,
@@ -127,7 +127,7 @@ function postAdminPassword (request, response) {
     }
 
     function writeAccount (done) {
-      request.storage.writeAccount('admin', {
+      request.storage.writeAccount('manager', {
         passwordHash,
         created: new Date().toISOString()
       }, done)
@@ -176,7 +176,7 @@ function sendInitializeForm (request, response, error) {
   <body>
     ${header()}
     <main role=main>
-      <form action=/admin method=post>
+      <form action=/manage method=post>
         <input name=action value=initialize type=hidden>
         ${errorMessage}
         <p>
@@ -187,7 +187,7 @@ function sendInitializeForm (request, response, error) {
           <label for=repeat>Repeat Password</label>
           <input name=repeat type=password>
         </p>
-        <button type=submit>Set Administrator Password</button>
+        <button type=submit>Set Manager Password</button>
       </form>
     </main>
     ${footer()}
@@ -196,7 +196,7 @@ function sendInitializeForm (request, response, error) {
   `.trim())
 }
 
-function sendAdminPanel (request, response) {
+function sendManagerPanel (request, response) {
   var accounts = []
   request.storage.createAccountsStream()
     .on('data', function (email) {
@@ -228,7 +228,7 @@ function sendAdminPanel (request, response) {
           </thead>
           <tbody>${tableRows}</tbody>
         </table>
-        <form action=/admin method=post>
+        <form action=/manage method=post>
           <input name=action value=invitation type=hidden>
           <button type=submit>Generate Invitation Code</button>
         </form>

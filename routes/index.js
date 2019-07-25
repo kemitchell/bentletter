@@ -5,7 +5,7 @@ var send = require('send')
 var routes = module.exports = require('http-hash')()
 
 routes.set('/', require('./home-page'))
-routes.set('/admin', require('./admin'))
+routes.set('/manage', require('./manage'))
 routes.set('/login', require('./login'))
 routes.set('/logout', require('./logout'))
 routes.set('/join', require('./join'))
