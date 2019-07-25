@@ -3,6 +3,8 @@
   "dependencies": {
     "ajv": "^6.10.1",
     "block-stream": "0.0.9",
+    "busboy": "^0.3.1",
+    "cookie": "^0.4.0",
     "encoding-down": "^6.1.0",
     "fast-json-stable-stringify": "^2.0.0",
     "flush-write-stream": "^2.0.0",
@@ -10,6 +12,7 @@
     "has": "^1.0.3",
     "http-hash": "^2.0.1",
     "json-parse-errback": "^2.0.1",
+    "leveldown": "^5.1.1",
     "levelup": "^4.1.0",
     "lexicographic-integer": "^1.1.0",
     "lock": "^1.1.0",
@@ -22,6 +25,7 @@
     "run-parallel": "^1.1.9",
     "run-series": "^1.1.8",
     "run-waterfall": "^1.1.6",
+    "secure-password": "^3.1.0",
     "send": "^0.17.1",
     "sodium-universal": "^2.0.0",
     "strict-json-object-schema": "^1.1.0",
@@ -39,7 +43,8 @@
   },
   "scripts": {
     "coverage": "nyc --reporter=lcov --reporter=text npm run test",
-    "test": "tape test/**.test.js",
+    "test": "NODE_ENV=test tape test/**.test.js",
+    "testserver": "NODE_ENV=test LEVELDOWN=memdown npm start",
     "lint": "standard"
   }
 }

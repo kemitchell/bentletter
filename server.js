@@ -1,3 +1,5 @@
+var Storage = require('./storage')
+var encodingDown = require('encoding-down')
 var handler = require('./')
 var http = require('http')
 var pino = require('pino')
@@ -12,22 +14,36 @@ process.on('uncaughtException', function (exception) {
 })
 
 function close () {
-  log.info('closing')
   server.close(function () {
-    log.info('closed')
-    process.exit(0)
+    log.info('server closed')
+    storage.close(function (error) {
+      if (error) log.error(error)
+      log.info('storage closed')
+      process.exit(0)
+    })
   })
 }
 
 function trapSignal (signal) {
-  log({ signal }, 'signal')
+  log.info({ signal }, 'signal')
   close()
 }
 
 var log = pino()
 var setUpHTTPLogs = pinoHTTP({ logger: log })
 
+var storage = new Storage({
+  leveldown: encodingDown(
+    process.env.LEVELDOWN === 'memdown'
+      ? require('memdown')()
+      : require('leveldown')(
+        process.env.LEVELDOWN || 'bentletter.leveldb'
+      )
+  )
+})
+
 var server = http.createServer(function (request, response) {
+  request.storage = storage
   setUpHTTPLogs(request, response)
   handler(request, response)
 })

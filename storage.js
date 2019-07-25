@@ -52,11 +52,17 @@ Storage Layout:
 
 - REPLIES/{Hex public key}@{LexInt index}/{Hex public key}@{LexInt index}
 
+- ACCOUNTS/{e-mail} -> JSON object
+
+- SESSIONS/{id} -> JSON object
+
+- SESSIONS/{id} -> JSON object
+
 */
 
 // Storage Key Prefixes
 
-var REPLIES = 'replies'
+var ACCOUNTS = 'accounts'
 var CONFLICTS = 'conflicts'
 var DIGESTS = 'digests'
 var FOLLOWERS = 'followers'
@@ -64,7 +70,10 @@ var LOGS = 'logs'
 var MENTIONS = 'mentions'
 var PUBLIC_KEYS = 'publicKeys'
 var REDUCTIONS = 'reductions'
+var REPLIES = 'replies'
+var SESSIONS = 'sessions'
 var TIMELINES = 'timelines'
+var TOKENS = 'tokens'
 
 // Methods
 
@@ -697,6 +706,116 @@ prototype.createRepliesStream = function (publicKeyHex, index) {
   )
 }
 
+// Stream accounts.
+prototype.createAccountsStream = function () {
+  return pump(
+    this._db.createReadStream({
+      gt: `${ACCOUNTS}/`,
+      lt: `${ACCOUNTS}/~`,
+      keys: true,
+      values: false
+    }),
+    through2.obj(function (key, _, done) {
+      done(null, key.split('/')[1])
+    })
+  )
+}
+
+// Authentication Interface
+
+prototype.account = function (email, callback) {
+  assert(typeof email === 'string')
+  assert(typeof callback === 'function')
+
+  this._db.get(
+    accountKey(email),
+    nullForNotFound(callback, function (json) {
+      parseJSON(json, callback)
+    })
+  )
+}
+
+prototype.writeAccount = function (email, data, callback) {
+  assert(typeof email === 'string')
+  assert(typeof data === 'object')
+  assert(typeof callback === 'function')
+
+  this._db.put(
+    accountKey(email),
+    JSON.stringify(data),
+    callback
+  )
+}
+
+prototype.deleteAccount = function (email, callback) {
+  assert(typeof email === 'string')
+  assert(typeof callback === 'function')
+
+  this._db.del(`${ACCOUNTS}/${email}`, callback)
+}
+
+prototype.session = function (sessionID, callback) {
+  assert(typeof sessionID === 'string')
+  assert(typeof callback === 'function')
+
+  this._db.get(
+    sessionKey(sessionID),
+    nullForNotFound(callback, function (json) {
+      parseJSON(json, callback)
+    })
+  )
+}
+
+prototype.writeSession = function (sessionID, data, callback) {
+  assert(typeof sessionID === 'string')
+  assert(typeof data === 'object')
+  assert(typeof callback === 'function')
+
+  this._db.put(
+    sessionKey(sessionID),
+    JSON.stringify(data),
+    callback
+  )
+}
+
+prototype.deleteSession = function (sessionID, callback) {
+  assert(typeof sessionID === 'string')
+  assert(typeof callback === 'function')
+
+  this._db.del(sessionKey(sessionID), callback)
+}
+
+prototype.token = function (tokenID, callback) {
+  assert(typeof tokenID === 'string')
+  assert(typeof callback === 'function')
+
+  this._db.get(
+    tokenKey(tokenID),
+    nullForNotFound(callback, function (json) {
+      parseJSON(json, callback)
+    })
+  )
+}
+
+prototype.writeToken = function (tokenID, data, callback) {
+  assert(typeof tokenID === 'string')
+  assert(typeof data === 'object')
+  assert(typeof callback === 'function')
+
+  this._db.put(
+    tokenKey(tokenID),
+    JSON.stringify(data),
+    callback
+  )
+}
+
+prototype.deleteToken = function (tokenID, callback) {
+  assert(typeof tokenID === 'string')
+  assert(typeof callback === 'function')
+
+  this._db.del(tokenKey(tokenID), callback)
+}
+
 // Reduction Interface
 
 // Read the reduction of a log.
@@ -835,4 +954,24 @@ function replyKey (parentPublicKey, parentIndex, childPublicKey, childIndex) {
     `/${parentPublicKey}@${encodeIndex(parentIndex)}` +
     `/${childPublicKey}@${encodeIndex(childIndex)}`
   )
+}
+
+function accountKey (email) {
+  assert(typeof email === 'string')
+
+  return `${ACCOUNTS}/${email}`
+}
+
+function sessionKey (id) {
+  assert(typeof id === 'string')
+  assert(DIGEST_RE.test(id))
+
+  return `${SESSIONS}/${id}`
+}
+
+function tokenKey (id) {
+  assert(typeof id === 'string')
+  assert(DIGEST_RE.test(id))
+
+  return `${TOKENS}/${id}`
 }
