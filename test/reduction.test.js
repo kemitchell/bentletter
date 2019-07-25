@@ -55,6 +55,17 @@ tape('reduce avatar', function (test) {
   })
 })
 
+tape('reduce email', function (test) {
+  var address = 'test@example.com'
+  var label = 'personal'
+  testReduction(test, [
+    { type: 'email', addresses: [{ address, label }] }
+  ], function (test, result) {
+    test.deepEqual(result.email, [{ address, label }], 'addresses')
+    test.end()
+  })
+})
+
 tape('reduce with date continuity error', function (test) {
   var keyPair = makeKeyPair()
   var secretKey = keyPair.secretKey.toString('hex')
