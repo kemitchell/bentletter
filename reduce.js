@@ -57,9 +57,15 @@ module.exports = function (reduction, envelope, callback) {
     return callback()
   }
 
-  if (type === 'avatar') reduction.avatar = body.uri
+  if (type === 'avatar') {
+    reduction.avatar = body.uri
+    return callback()
+  }
 
-  if (type === 'email') reduction.email = body.addresses
+  if (type === 'email') {
+    reduction.email = body.addresses
+    return callback()
+  }
 
   return callback()
 }
