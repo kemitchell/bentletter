@@ -42,8 +42,8 @@ module.exports = function (request, response) {
         }
       })
         .on('field', function (name, value, truncated, encoding, mime) {
-          if (name === 'token') token = value
-          else if (name === 'email') email = value
+          if (name === 'token') token = value.toLowerCase()
+          else if (name === 'email') email = value.toLowerCase()
           else if (name === 'password') password = value
           else if (name === 'repeat') repeat = value
         })

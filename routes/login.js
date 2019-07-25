@@ -76,7 +76,7 @@ function post (request, response) {
         }
       })
         .on('field', function (name, value, truncated, encoding, mime) {
-          if (name === 'email') email = value
+          if (name === 'email') email = value.toLowerCase()
           else if (name === 'password') password = value
         })
         .once('finish', done)
