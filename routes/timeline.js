@@ -63,9 +63,11 @@ module.exports = function (request, response) {
 }
 
 function renderTimeline (data) {
-  return `<ol>${data.timeline.map(function (envelope) {
+  var heading = `<h2>Timeline</h2>`
+  var envelopes = `<ol>${data.timeline.map(function (envelope) {
     return renderEnvelope(envelope, data.reduction)
   }).join('')}</ol>`
+  return heading + envelopes
 }
 
 function renderEnvelope (envelope, reduction) {

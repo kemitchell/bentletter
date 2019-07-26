@@ -9,64 +9,62 @@ tape.only('manage, login, invite, register', function (test) {
     var browser
     var code
     webdriver()
-      .then(function (loaded) { browser = loaded })
+      .then((loaded) => { browser = loaded })
 
       // Set manager password.
-      .then(function () {
-        return browser.url('http://localhost:' + port + '/manage')
-      })
-      .then(function () { return browser.$('input[name=password]') })
-      .then(function (password) { return password.setValue(MANAGER_PASSWORD) })
-      .then(function () { return browser.$('input[name=repeat]') })
-      .then(function (repeat) { return repeat.setValue(MANAGER_PASSWORD) })
-      .then(function () { return browser.$('button[type=submit]') })
-      .then(function (submit) { return submit.click() })
+      .then(() => browser.url('http://localhost:' + port + '/manage'))
+      .then(() => browser.$('input[name=password]'))
+      .then((password) => password.setValue(MANAGER_PASSWORD))
+      .then(() => browser.$('input[name=repeat]'))
+      .then((repeat) => repeat.setValue(MANAGER_PASSWORD))
+      .then(() => browser.$('button[type=submit]'))
+      .then((submit) => submit.click())
+      .then(() => test.pass('set manager password'))
 
       // Log in as manager.
-      .then(function () { return browser.$('input[name=email]') })
-      .then(function (email) { return email.setValue('manager') })
-      .then(function () { return browser.$('input[name=password]') })
-      .then(function (password) { return password.setValue(MANAGER_PASSWORD) })
-      .then(function () { return browser.$('button[type=submit]') })
-      .then(function (submit) { return submit.click() })
+      .then(() => browser.$('input[name=email]'))
+      .then((email) => email.setValue('manager'))
+      .then(() => browser.$('input[name=password]'))
+      .then((password) => password.setValue(MANAGER_PASSWORD))
+      .then(() => browser.$('button[type=submit]'))
+      .then((submit) => submit.click())
+      .then(() => browser.$('h2=Manage'))
+      .then((heading) => test.ok(heading, 'logged in as manager'))
 
       // Generate invitation code.
-      .then(function () { return browser.$('button=Generate Invitation Code') })
-      .then(function (submit) { return submit.click() })
-
-      // Copy invitation code.
-      .then(function () { return browser.$('code') })
-      .then(function (element) { return element.getText() })
-      .then(function (text) {
+      .then(() => browser.$('button=Generate Invitation Code'))
+      .then((submit) => submit.click())
+      .then(() => browser.$('code'))
+      .then((element) => element.getText())
+      .then((text) => {
         code = text
-        test.assert(/^[a-f0-9]+$/.test(code), 'hex code')
+        test.assert(/^[a-f0-9]+$/.test(code), 'made invitation code')
       })
 
       // Log out as manager.
-      .then(function () {
-        return browser.url('http://localhost:' + port + '/logout')
-      })
+      .then(() => browser.url('http://localhost:' + port + '/logout'))
 
       // Use invitation.
-      .then(function () {
-        return browser.url('http://localhost:' + port + '/')
-      })
-      .then(function () { return browser.$('input[name=token]') })
-      .then(function (token) { return token.setValue(code) })
-      .then(function () { return browser.$('input[name=email]') })
-      .then(function (element) { return element.setValue('test@example.com') })
-      .then(function () { return browser.$('input[name=password]') })
-      .then(function (element) { return element.setValue(USER_PASSWORD) })
-      .then(function () { return browser.$('input[name=repeat]') })
-      .then(function (element) { return element.setValue(USER_PASSWORD) })
-      .then(function () { return browser.$('button=Join') })
-      .then(function (submit) { return submit.click() })
+      .then(() => browser.url('http://localhost:' + port + '/'))
+      .then(() => browser.$('input[name=token]'))
+      .then((token) => token.setValue(code))
+      .then(() => browser.$('input[name=email]'))
+      .then((element) => element.setValue('test@example.com'))
+      .then(() => browser.$('input[name=password]'))
+      .then((element) => element.setValue(USER_PASSWORD))
+      .then(() => browser.$('input[name=repeat]'))
+      .then((element) => element.setValue(USER_PASSWORD))
+      .then(() => browser.$('button=Join'))
+      .then((submit) => submit.click())
+      .then(() => browser.$('h2=Timeline'))
+      .then((timelineHeading) => test.ok(timelineHeading, 'registered'))
 
       .then(finish)
-      .catch(function (error) {
+      .catch((error) => {
         test.ifError(error)
         finish()
       })
+
     function finish () {
       browser.deleteSession()
       closeServer()
