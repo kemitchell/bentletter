@@ -20,7 +20,7 @@ module.exports = function (request, response, error) {
       <form action=/join method=post>
         ${errorMessage}
         <p>
-          <label for=token>Token</label>
+          <label for=token>Invitation Code</label>
           <input name=token type=text>
         </p>
         <p>
