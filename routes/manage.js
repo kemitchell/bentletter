@@ -163,7 +163,7 @@ function sendInvitationCode (request, response) {
     ${header()}
     <main role=main>
       <h2>Invitation Code</h2>
-      <p><code>${token}</code></p>
+      <p><code class=invitation>${token}</code></p>
     </main>
     ${footer()}
   </body>
