@@ -45,7 +45,9 @@
   },
   "scripts": {
     "coverage": "nyc --reporter=lcov --reporter=text npm run test",
+    "pretest": "chromedriver &",
     "test": "NODE_ENV=test tape test/**.test.js",
+    "posttest": "killall chromedriver",
     "testserver": "NODE_ENV=test LEVELDOWN=memdown npm start",
     "lint": "standard"
   }
