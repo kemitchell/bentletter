@@ -1,8 +1,8 @@
 var authenticate = require('./authenticate')
-var escapeHTML = require('escape-html')
 var footer = require('./partials/footer')
 var header = require('./partials/header')
 var internalError = require('./internal-error')
+var renderEnvelope = require('./partials/envelope')
 var runParallel = require('run-parallel')
 var seeOther = require('./see-other')
 
@@ -68,12 +68,4 @@ function renderTimeline (data) {
     return renderEnvelope(envelope, data.reduction)
   }).join('')}</ol>`
   return heading + envelopes
-}
-
-function renderEnvelope (envelope, reduction) {
-  var publicKey = envelope.publicKey
-  var message = envelope.message
-  var index = message.index
-  var name = reduction.following[publicKey].name
-  return `<li>${escapeHTML(name)} #${index}</li>`
 }

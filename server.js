@@ -2,8 +2,10 @@ var Storage = require('./storage')
 var encodingDown = require('encoding-down')
 var handler = require('./')
 var http = require('http')
+var jobs = require('./jobs')
 var pino = require('pino')
 var pinoHTTP = require('pino-http')
+var schedule = require('node-schedule')
 
 process.on('SIGINT', trapSignal)
 process.on('SIGQUIT', trapSignal)
@@ -50,4 +52,14 @@ var server = http.createServer(function (request, response) {
 
 server.listen(process.env.PORT || 8080, function () {
   log.info({ port: this.address().port }, 'listening')
+})
+
+jobs.forEach(function (job) {
+  schedule.scheduleJob(job.cron, function () {
+    var jobLog = log.child({ subsystem: 'jobs', name: job.name })
+    jobLog.info('running')
+    job.handler(storage, jobLog, function () {
+      jobLog.info('done')
+    })
+  })
 })
