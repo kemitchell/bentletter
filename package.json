@@ -39,6 +39,7 @@
   "devDependencies": {
     "deep-equal": "^1.0.1",
     "glob": "^7.1.4",
+    "licensee": "^7.0.2",
     "memdown": "^4.1.0",
     "nyc": "^14.1.1",
     "simple-concat": "^1.0.0",
@@ -52,6 +53,7 @@
     "test": "NODE_ENV=test tape test/**.test.js",
     "posttest": "killall chromedriver",
     "testserver": "NODE_ENV=test LEVELDOWN=memdown npm start",
+    "licenses": "licensee --errors-only",
     "lint": "standard"
   }
 }
