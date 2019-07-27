@@ -7,7 +7,7 @@ module.exports = strictJSONObjectSchema({
     items: strictJSONObjectSchema({
       address: {
         type: 'string',
-        pattern: 'uri'
+        pattern: 'email'
       },
       label: {
         type: 'string',
