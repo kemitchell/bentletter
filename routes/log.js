@@ -1,5 +1,5 @@
 var PUBLIC_KEY_RE = require('../crypto/public-key-re')
-var concat = require('../concat')
+var concat = require('../util/concat')
 var footer = require('./partials/footer')
 var header = require('./partials/header')
 var internalError = require('./internal-error')

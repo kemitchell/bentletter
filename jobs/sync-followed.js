@@ -1,4 +1,4 @@
-var concat = require('../concat')
+var concat = require('../util/concat')
 var flushWriteStream = require('flush-write-stream')
 var from2Array = require('from2-array')
 var pump = require('pump')
