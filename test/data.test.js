@@ -67,7 +67,7 @@ tape('storage', function (test) {
     },
     function stream (done) {
       var read = []
-      storage.createLogStream(publicKey)
+      storage.createLogStream({ publicKey })
         .on('data', function (envelope) {
           read.push(envelope)
         })
@@ -79,7 +79,7 @@ tape('storage', function (test) {
     },
     function reverseStream (done) {
       var read = []
-      storage.createReverseLogStream(publicKey)
+      storage.createReverseLogStream({ publicKey })
         .on('data', function (envelope) {
           read.push(envelope)
         })
@@ -309,7 +309,7 @@ tape('timeline and mentions', function (test) {
       runSeries([
         function testTimeline (done) {
           var timeline = []
-          storage.createTimelineStream(charlie.publicKey)
+          storage.createTimelineStream({ publicKey: charlie.publicKey })
             .on('data', function (envelope) {
               timeline.push(envelope)
             })
@@ -336,7 +336,7 @@ tape('timeline and mentions', function (test) {
         },
         function testMentions (done) {
           var mentions = []
-          storage.createMentionsStream(charlie.publicKey)
+          storage.createMentionsStream({ publicKey: charlie.publicKey })
             .on('data', function (envelope) {
               mentions.push(envelope)
             })

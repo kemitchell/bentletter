@@ -21,7 +21,7 @@ module.exports = function (request, response) {
         },
         timeline: function (done) {
           var envelopes = []
-          request.storage.createTimelineStream(publicKey)
+          request.storage.createTimelineStream({ publicKey })
             .on('data', function (envelope) {
               envelopes.push(envelope)
               if (envelopes.length === 100) {

@@ -23,7 +23,7 @@ module.exports = function (request, response) {
     response.statusCode = 400
     return response.end()
   }
-  request.stream = request.storage.createReverseLogStream(publicKey)
+  request.stream = request.storage.createReverseLogStream({ publicKey })
   if (accept === 'application/x-ndjson') {
     return sync(request, response)
   }

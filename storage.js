@@ -247,7 +247,7 @@ prototype.append = function (envelope, callback) {
     )
     if (stopped) return done()
     pump(
-      self.createLogStream(followed),
+      self.createLogStream({ publicKey: followed }),
       flushWriteStream.obj(function (envelope, _, done) {
         var batch = []
         var keyArguments = [
@@ -540,42 +540,55 @@ prototype.read = function (publicKeyHex, index, callback) {
 // Streaming Interface
 
 // Stream the entries of a log in ascending-index order.
-prototype.createLogStream = function (publicKeyHex) {
-  assert(typeof publicKeyHex === 'string')
-  assert(PUBLIC_KEY_RE.test(publicKeyHex))
-
-  var self = this
-  return pump(
-    self._db.createReadStream({
-      gt: `${LOGS}/${publicKeyHex}/`,
-      lt: `${LOGS}/${publicKeyHex}/~`,
-      keys: false,
-      values: true
-    }),
-    through2.obj(function (json, _, done) {
-      parseJSON(json, done)
-    })
-  )
-}
+prototype.createLogStream = valueStreamMethod({
+  prefix: LOGS,
+  reverse: false
+})
 
 // Stream the entries of a log in reverse-index order.
-prototype.createReverseLogStream = function (publicKeyHex) {
-  assert(typeof publicKeyHex === 'string')
-  assert(PUBLIC_KEY_RE.test(publicKeyHex))
+prototype.createReverseLogStream = valueStreamMethod({
+  prefix: LOGS,
+  reverse: true
+})
 
-  var self = this
-  return pump(
-    self._db.createReadStream({
-      gt: `${LOGS}/${publicKeyHex}/`,
-      lt: `${LOGS}/${publicKeyHex}/~`,
-      keys: false,
-      values: true,
-      reverse: true
-    }),
-    through2.obj(function (json, _, done) {
-      parseJSON(json, done)
-    })
-  )
+function valueStreamMethod (configuration) {
+  assert(typeof configuration === 'object')
+  var prefix = configuration.prefix
+  assert(typeof prefix === 'string')
+
+  return function (options) {
+    assert(typeof options === 'object')
+    var publicKey = options.publicKey
+    assert(typeof publicKey === 'string')
+    assert(PUBLIC_KEY_RE.test(publicKey))
+    var after = options.after
+    if (after !== undefined) {
+      assert(typeof after === 'number')
+      assert(Number.isSafeInteger(after))
+      assert(after >= 0)
+    }
+    var through = options.through
+    if (through !== undefined) {
+      assert(typeof through === 'number')
+      assert(Number.isSafeInteger(through))
+    }
+
+    var self = this
+    var gt = options.after ? encodeIndex(options.after) : ''
+    var lt = options.through ? encodeIndex(options.through) : '~'
+    return pump(
+      self._db.createReadStream({
+        gt: `${prefix}/${publicKey}/${gt}`,
+        lt: `${prefix}/${publicKey}/${lt}`,
+        keys: false,
+        values: true,
+        reverse: configuration.reverse || false
+      }),
+      through2.obj(function (json, _, done) {
+        parseJSON(json, done)
+      })
+    )
+  }
 }
 
 // Stream conflicting entries to a log.
@@ -643,42 +656,16 @@ prototype.createFollowersStream = function (publicKeyHex) {
 }
 
 // Stream timeline in reverse chronological order.
-prototype.createTimelineStream = function (publicKeyHex, direction) {
-  assert(typeof publicKeyHex === 'string')
-  assert(PUBLIC_KEY_RE.test(publicKeyHex))
-
-  return pump(
-    this._db.createReadStream({
-      gt: `${TIMELINES}/${publicKeyHex}/`,
-      lt: `${TIMELINES}/${publicKeyHex}/~`,
-      keys: false,
-      values: true,
-      reverse: direction === 'reverse'
-    }),
-    through2.obj(function (json, _, done) {
-      parseJSON(json, done)
-    })
-  )
-}
+prototype.createTimelineStream = valueStreamMethod({
+  prefix: TIMELINES,
+  reverse: true
+})
 
 // Stream mentions in reverse chronological order.
-prototype.createMentionsStream = function (publicKeyHex) {
-  assert(typeof publicKeyHex === 'string')
-  assert(PUBLIC_KEY_RE.test(publicKeyHex))
-
-  return pump(
-    this._db.createReadStream({
-      gt: `${MENTIONS}/${publicKeyHex}/`,
-      lt: `${MENTIONS}/${publicKeyHex}/~`,
-      keys: false,
-      values: true,
-      reverse: true
-    }),
-    through2.obj(function (json, _, done) {
-      parseJSON(json, done)
-    })
-  )
-}
+prototype.createMentionsStream = valueStreamMethod({
+  prefix: MENTIONS,
+  reverse: true
+})
 
 // Stream children of (replies to) a post.
 prototype.createRepliesStream = function (publicKeyHex, index) {
@@ -833,17 +820,17 @@ prototype.reduction = function (publicKeyHex, callback) {
 }
 
 // Recoputer the reduction of a log.
-prototype.rereduce = function (publicKeyHex, callback) {
-  assert(typeof publicKeyHex === 'string')
-  assert(PUBLIC_KEY_RE.test(publicKeyHex))
+prototype.rereduce = function (publicKey, callback) {
+  assert(typeof publicKey === 'string')
+  assert(PUBLIC_KEY_RE.test(publicKey))
   assert(typeof callback === 'function')
 
   var self = this
   var reduction = {}
-  lock(publicKeyHex, function (unlock) {
+  lock(publicKey, function (unlock) {
     callback = unlock(callback)
     pump(
-      self.createLogStream(publicKeyHex),
+      self.createLogStream({ publicKey }),
       flushWriteStream.obj(function (envelope, _, done) {
         reduce(reduction, envelope, done)
       }),
@@ -851,7 +838,7 @@ prototype.rereduce = function (publicKeyHex, callback) {
         /* istanbul ignore if */
         if (error) return callback(error)
         self._updateReduction(
-          publicKeyHex, reduction, callback
+          publicKey, reduction, callback
         )
       }
     )
