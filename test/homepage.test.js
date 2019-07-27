@@ -1,3 +1,4 @@
+var clientTest = require('./client-test')
 var http = require('http')
 var meta = require('../package.json')
 var server = require('./server')
@@ -27,7 +28,7 @@ tape.test('GET /', function (test) {
   })
 })
 
-tape.test('browse /', function (test) {
+clientTest('browse /', function (test) {
   server(function (port, closeServer) {
     var browser
     webdriver()

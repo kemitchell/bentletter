@@ -1,8 +1,8 @@
+var clientTest = require('./client-test')
 var server = require('./server')
-var tape = require('tape')
 var webdriver = require('./webdriver')
 
-tape.test('manage, login, invite, register', function (test) {
+clientTest('manage, login, invite, register', function (test) {
   var MANAGER_PASSWORD = 'hsh~ie0Oo'
   var USER_PASSWORD = 'od6pu^Yixi'
   server(async function (port, closeServer) {
